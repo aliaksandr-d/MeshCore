@@ -12,7 +12,7 @@ public:
 
   // Try to connect to any available WiFi network from the list
   // Returns true if connected, false otherwise
-  static bool connect(const WiFiCredential* credentials, size_t count, unsigned long timeout_ms = 10000) {
+  static bool connect(const WiFiCredential* credentials, size_t count, const unsigned long timeout_ms = 10000) {
     if (count == 0 || credentials == nullptr) {
       return false;
     }
