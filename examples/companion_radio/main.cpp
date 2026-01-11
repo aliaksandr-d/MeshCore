@@ -196,7 +196,57 @@ void setup() {
   );
 
 #ifdef WIFI_SSID
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  // Support for multiple WiFi networks
+  struct WiFiCredential {
+    const char* ssid;
+    const char* password;
+  };
+  
+  // Build list of WiFi credentials from compile-time defines
+  WiFiCredential wifi_credentials[] = {
+    {WIFI_SSID, WIFI_PWD}
+    #ifdef WIFI_SSID_2
+    , {WIFI_SSID_2, WIFI_PWD_2}
+    #endif
+    #ifdef WIFI_SSID_3
+    , {WIFI_SSID_3, WIFI_PWD_3}
+    #endif
+    #ifdef WIFI_SSID_4
+    , {WIFI_SSID_4, WIFI_PWD_4}
+    #endif
+    #ifdef WIFI_SSID_5
+    , {WIFI_SSID_5, WIFI_PWD_5}
+    #endif
+  };
+  
+  const int num_credentials = sizeof(wifi_credentials) / sizeof(wifi_credentials[0]);
+  
+  // Try to connect to each WiFi network in order
+  bool connected = false;
+  for (int i = 0; i < num_credentials && !connected; i++) {
+    WIFI_DEBUG_PRINTLN("Attempting to connect to WiFi: %s", wifi_credentials[i].ssid);
+    WiFi.begin(wifi_credentials[i].ssid, wifi_credentials[i].password);
+    
+    // Wait for connection with timeout
+    int timeout = 0;
+    while (WiFi.status() != WL_CONNECTED && timeout < 100) {
+      delay(100);
+      timeout++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      connected = true;
+      WIFI_DEBUG_PRINTLN("Connected to WiFi: %s", wifi_credentials[i].ssid);
+      WIFI_DEBUG_PRINTLN("IP address: %s", WiFi.localIP().toString().c_str());
+    } else {
+      WIFI_DEBUG_PRINTLN("Failed to connect to WiFi: %s", wifi_credentials[i].ssid);
+    }
+  }
+  
+  if (!connected) {
+    WIFI_DEBUG_PRINTLN("Failed to connect to any WiFi network");
+  }
+  
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
   char dev_name[32+16];
