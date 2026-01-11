@@ -24,18 +24,18 @@ class SerialWifiInterface : public BaseSerialInterface {
   Frame send_queue[FRAME_QUEUE_SIZE];
 
   void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
-
-  // Multi-SSID support
-  struct WiFiCredentials {
-    const char* ssid;
-    const char* password;
-  };
   
   bool connectToAvailableNetwork(WiFiCredentials* networks, size_t count);
 
 protected:
 
 public:
+  // Multi-SSID support - public struct for external use
+  struct WiFiCredentials {
+    const char* ssid;
+    const char* password;
+  };
+
   SerialWifiInterface() : server(WiFiServer()), client(WiFiClient()) {
     deviceConnected = false;
     _isEnabled = false;
