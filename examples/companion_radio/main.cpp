@@ -35,7 +35,7 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(WIFI_SSID) || defined(WIFI_SSID_LIST)
     #ifdef BLE_PIN_CODE
       // Dual mode: both WiFi and BLE
       #include <helpers/esp32/DualSerialInterface.h>
@@ -203,7 +203,7 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
+#if defined(WIFI_SSID) || defined(WIFI_SSID_LIST)
   #ifdef BLE_PIN_CODE
     // Dual mode: initialize both WiFi and BLE
     #ifdef WIFI_SSID_LIST

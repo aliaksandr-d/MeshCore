@@ -72,12 +72,31 @@ pio run -e heltec_v4_companion_radio_wifi_ble
 ### Changing WiFi Networks
 Edit the platformio.ini file in `variants/heltec_v4/platformio.ini`:
 
+**For WiFi-only mode (`heltec_v4_companion_radio_wifi`):**
 ```ini
 [env:heltec_v4_companion_radio_wifi]
 build_flags =
   ...
-  -D WIFI_SSID_LIST='{{"your_ssid1","your_pwd1"},{"your_ssid2","your_pwd2"}}'
+  ; Comment out the example and add your own networks
+  ;-D WIFI_SSID_LIST='{{"home_network","home_password"},{"work_network","work_password"}}'
+  -D WIFI_SSID_LIST='{{"MyHomeWiFi","mypassword"},{"WorkWiFi","workpass"}}'
 ```
+
+**For dual WiFi+BLE mode (`heltec_v4_companion_radio_wifi_ble`):**
+```ini
+[env:heltec_v4_companion_radio_wifi_ble]
+build_flags =
+  ...
+  -D BLE_PIN_CODE=123456
+  -D WIFI_SSID_LIST='{{"MyHomeWiFi","mypassword"},{"WorkWiFi","workpass"}}'
+```
+
+### Important Notes on SSID/Password Format
+- Use double quotes inside the array: `"ssid_name"`
+- Escape special characters if needed
+- Network names and passwords are case-sensitive
+- You can list as many networks as needed (memory permitting)
+- Networks are tried in the order specified
 
 ### Changing BLE PIN Code
 ```ini
@@ -102,6 +121,12 @@ Enable debug logging to see connection details:
 -D BLE_DEBUG_LOGGING=1
 ```
 
+Monitor the serial output (115200 baud) to see:
+- Available networks found during scan
+- Connection attempts and results
+- Client connections/disconnections
+- IP address assigned
+
 ## Technical Details
 
 ### Files Modified
@@ -112,12 +137,22 @@ Enable debug logging to see connection details:
 - `variants/heltec_v4/platformio.ini` - Added new firmware configurations
 
 ### Key Classes
-- `SerialWifiInterface` - Handles WiFi TCP connections
+- `SerialWifiInterface` - Handles WiFi TCP connections with multi-SSID support
 - `SerialBLEInterface` - Handles Bluetooth Low Energy connections
 - `DualSerialInterface` - Combines both WiFi and BLE interfaces
+
+### WiFi Connection Process
+1. `WiFi.mode(WIFI_STA)` - Set WiFi to station mode
+2. `WiFi.scanNetworks()` - Scan for available networks
+3. For each configured SSID, check if it's in scan results
+4. `WiFi.begin(ssid, password)` - Attempt connection
+5. Wait up to 10 seconds for connection
+6. If successful, start TCP server
+7. If failed, try next SSID in list
 
 ## Notes
 - The device will attempt to reconnect if WiFi connection is lost
 - BLE connection is independent of WiFi status in dual mode
 - Multiple SSIDs allow seamless roaming between different networks
 - Network credentials are stored in firmware (not in flash storage)
+- First match wins - device connects to the first available network in your list
