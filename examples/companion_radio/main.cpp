@@ -35,7 +35,13 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(WIFI_SSID) && defined(BLE_PIN_CODE)
+    #include <helpers/esp32/SerialDualInterface.h>
+    SerialDualInterface serial_interface;
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+  #elif defined(WIFI_SSID)
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
@@ -195,7 +201,14 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
+#if defined(WIFI_SSID) && defined(BLE_PIN_CODE)
+  // Dual mode: WiFi and BLE
+  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  serial_interface.beginWiFi(TCP_PORT);
+  char dev_name[32+16];
+  sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
+  serial_interface.beginBLE(dev_name, the_mesh.getBLEPin());
+#elif defined(WIFI_SSID)
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
