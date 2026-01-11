@@ -123,7 +123,7 @@ size_t SerialDualInterface::checkRecvFrame(uint8_t dest[]) {
     len = wifiInterface.checkRecvFrame(dest);
     if (len > 0) {
       activeInterface = WIFI;
-      DUAL_DEBUG_PRINTLN("Received %d bytes from WiFi", len);
+      DUAL_DEBUG_PRINTLN("Received %zu bytes from WiFi", len);
       return len;
     }
   }
@@ -133,7 +133,7 @@ size_t SerialDualInterface::checkRecvFrame(uint8_t dest[]) {
     len = bleInterface.checkRecvFrame(dest);
     if (len > 0) {
       activeInterface = BLE;
-      DUAL_DEBUG_PRINTLN("Received %d bytes from BLE", len);
+      DUAL_DEBUG_PRINTLN("Received %zu bytes from BLE", len);
       return len;
     }
   }
