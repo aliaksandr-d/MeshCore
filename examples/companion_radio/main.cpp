@@ -35,13 +35,21 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
-    #include <helpers/esp32/SerialWifiInterface.h>
-    SerialWifiInterface serial_interface;
-    #ifndef TCP_PORT
-      #define TCP_PORT 5000
+  #if defined(WIFI_SSID) || defined(WIFI_SSID_LIST)
+    #ifdef BLE_PIN_CODE
+      // Dual mode: both WiFi and BLE
+      #include <helpers/esp32/DualSerialInterface.h>
+      DualSerialInterface serial_interface;
+    #else
+      // WiFi only
+      #include <helpers/esp32/SerialWifiInterface.h>
+      SerialWifiInterface serial_interface;
+      #ifndef TCP_PORT
+        #define TCP_PORT 5000
+      #endif
     #endif
   #elif defined(BLE_PIN_CODE)
+    // BLE only
     #include <helpers/esp32/SerialBLEInterface.h>
     SerialBLEInterface serial_interface;
   #elif defined(SERIAL_RX)
@@ -195,10 +203,34 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
-  serial_interface.begin(TCP_PORT);
+#if defined(WIFI_SSID) || defined(WIFI_SSID_LIST)
+  #ifdef BLE_PIN_CODE
+    // Dual mode: initialize both WiFi and BLE
+    #ifdef WIFI_SSID_LIST
+      SerialWifiInterface::WiFiCredentials networks[] = WIFI_SSID_LIST;
+      size_t network_count = sizeof(networks) / sizeof(networks[0]);
+      serial_interface.beginWiFi(networks, network_count, TCP_PORT);
+    #else
+      SerialWifiInterface::WiFiCredentials networks[] = {{WIFI_SSID, WIFI_PWD}};
+      serial_interface.beginWiFi(networks, 1, TCP_PORT);
+    #endif
+    
+    char dev_name[32+16];
+    sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
+    serial_interface.beginBLE(dev_name, the_mesh.getBLEPin());
+  #else
+    // WiFi only mode
+    #ifdef WIFI_SSID_LIST
+      SerialWifiInterface::WiFiCredentials networks[] = WIFI_SSID_LIST;
+      size_t network_count = sizeof(networks) / sizeof(networks[0]);
+      serial_interface.begin(networks, network_count, TCP_PORT);
+    #else
+      SerialWifiInterface::WiFiCredentials networks[] = {{WIFI_SSID, WIFI_PWD}};
+      serial_interface.begin(networks, 1, TCP_PORT);
+    #endif
+  #endif
 #elif defined(BLE_PIN_CODE)
+  // BLE only mode
   char dev_name[32+16];
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
