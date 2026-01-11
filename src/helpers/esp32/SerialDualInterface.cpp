@@ -111,49 +111,40 @@ size_t SerialDualInterface::writeFrame(const uint8_t src[], size_t len) {
 }
 
 size_t SerialDualInterface::checkRecvFrame(uint8_t dest[]) {
-  // Check WiFi interface first if it's the active one
-  if (activeInterface == WIFI && _wifiEnabled) {
-    size_t len = wifiInterface.checkRecvFrame(dest);
+  size_t len = 0;
+  
+  // Always call checkRecvFrame on both interfaces to allow them to:
+  // 1. Send queued data
+  // 2. Manage connection state
+  // 3. Check for incoming data
+  
+  // Check WiFi first
+  if (_wifiEnabled) {
+    len = wifiInterface.checkRecvFrame(dest);
     if (len > 0) {
+      activeInterface = WIFI;
+      DUAL_DEBUG_PRINTLN("Received %d bytes from WiFi", len);
       return len;
-    }
-    // Check if WiFi is still connected
-    if (!wifiInterface.isConnected()) {
-      activeInterface = NONE;
     }
   }
   
-  // Check BLE interface if it's the active one
-  if (activeInterface == BLE && _bleEnabled) {
-    size_t len = bleInterface.checkRecvFrame(dest);
+  // Check BLE
+  if (_bleEnabled) {
+    len = bleInterface.checkRecvFrame(dest);
     if (len > 0) {
+      activeInterface = BLE;
+      DUAL_DEBUG_PRINTLN("Received %d bytes from BLE", len);
       return len;
-    }
-    // Check if BLE is still connected
-    if (!bleInterface.isConnected()) {
-      activeInterface = NONE;
     }
   }
   
-  // If no active interface, check both (WiFi first, then BLE)
-  if (activeInterface == NONE) {
-    if (_wifiEnabled) {
-      size_t len = wifiInterface.checkRecvFrame(dest);
-      if (len > 0) {
-        activeInterface = WIFI;
-        DUAL_DEBUG_PRINTLN("WiFi became active interface");
-        return len;
-      }
-    }
-    
-    if (_bleEnabled) {
-      size_t len = bleInterface.checkRecvFrame(dest);
-      if (len > 0) {
-        activeInterface = BLE;
-        DUAL_DEBUG_PRINTLN("BLE became active interface");
-        return len;
-      }
-    }
+  // Update active interface based on connection status
+  if (activeInterface == WIFI && (!_wifiEnabled || !wifiInterface.isConnected())) {
+    activeInterface = NONE;
+    DUAL_DEBUG_PRINTLN("WiFi disconnected");
+  } else if (activeInterface == BLE && (!_bleEnabled || !bleInterface.isConnected())) {
+    activeInterface = NONE;
+    DUAL_DEBUG_PRINTLN("BLE disconnected");
   }
   
   return 0;
