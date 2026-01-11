@@ -98,7 +98,12 @@ static uint32_t _atoi(const char* sp) {
 /* GLOBAL OBJECTS */
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
-  UITask ui_task(&board, &serial_interface);
+  #ifdef WIFI_BLE_DUAL_MODE
+    // In dual mode, use WiFi interface for UITask
+    UITask ui_task(&board, &serial_wifi_interface);
+  #else
+    UITask ui_task(&board, &serial_interface);
+  #endif
 #endif
 
 StdRNG fast_rng;
