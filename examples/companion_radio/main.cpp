@@ -212,6 +212,8 @@ void setup() {
     WiFi.begin(WIFI_SSID, WIFI_PWD);
   #else
     // Multiple SSID configuration
+    // Note: connect() will attempt each SSID and return true if any succeeds
+    // If connection fails, the device will still start but WiFi won't be available
     WiFiMultiConnect::WiFiCredential credentials[] = {
       {WIFI_SSID, WIFI_PWD},
       #ifdef WIFI_SSID_2
@@ -227,7 +229,12 @@ void setup() {
       {WIFI_SSID_5, WIFI_PWD_5},
       #endif
     };
-    WiFiMultiConnect::connect(credentials, sizeof(credentials) / sizeof(credentials[0]));
+    bool wifi_connected = WiFiMultiConnect::connect(credentials, sizeof(credentials) / sizeof(credentials[0]));
+    #ifdef WIFI_DEBUG_LOGGING
+    if (!wifi_connected) {
+      Serial.println("WiFi: Failed to connect to any configured network");
+    }
+    #endif
   #endif
   serial_interface.beginWifi(TCP_PORT);
   
@@ -242,6 +249,8 @@ void setup() {
     WiFi.begin(WIFI_SSID, WIFI_PWD);
   #else
     // Multiple SSID configuration
+    // Note: connect() will attempt each SSID and return true if any succeeds
+    // If connection fails, the device will still start but WiFi won't be available
     WiFiMultiConnect::WiFiCredential credentials[] = {
       {WIFI_SSID, WIFI_PWD},
       #ifdef WIFI_SSID_2
@@ -257,7 +266,12 @@ void setup() {
       {WIFI_SSID_5, WIFI_PWD_5},
       #endif
     };
-    WiFiMultiConnect::connect(credentials, sizeof(credentials) / sizeof(credentials[0]));
+    bool wifi_connected = WiFiMultiConnect::connect(credentials, sizeof(credentials) / sizeof(credentials[0]));
+    #ifdef WIFI_DEBUG_LOGGING
+    if (!wifi_connected) {
+      Serial.println("WiFi: Failed to connect to any configured network");
+    }
+    #endif
   #endif
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
