@@ -1,9 +1,60 @@
 #include "SerialWifiInterface.h"
 #include <WiFi.h>
 
+bool SerialWifiInterface::connectToAvailableNetwork(WiFiCredentials* networks, size_t count) {
+  if (count == 0) return false;
+  
+  WIFI_DEBUG_PRINTLN("Scanning for available networks...");
+  int numNetworks = WiFi.scanNetworks();
+  WIFI_DEBUG_PRINTLN("Found %d networks", numNetworks);
+  
+  // Try each configured network against scan results
+  for (size_t i = 0; i < count; i++) {
+    WIFI_DEBUG_PRINTLN("Checking if '%s' is available...", networks[i].ssid);
+    
+    for (int j = 0; j < numNetworks; j++) {
+      String scanSSID = WiFi.SSID(j);
+      if (scanSSID.equals(networks[i].ssid)) {
+        WIFI_DEBUG_PRINTLN("Found network '%s', attempting to connect...", networks[i].ssid);
+        WiFi.begin(networks[i].ssid, networks[i].password);
+        
+        // Wait for connection (timeout after 10 seconds)
+        int attempts = 0;
+        while (WiFi.status() != WL_CONNECTED && attempts < 40) {
+          delay(250);
+          attempts++;
+        }
+        
+        if (WiFi.status() == WL_CONNECTED) {
+          WIFI_DEBUG_PRINTLN("Connected to '%s'", networks[i].ssid);
+          WIFI_DEBUG_PRINTLN("IP address: %s", WiFi.localIP().toString().c_str());
+          return true;
+        } else {
+          WIFI_DEBUG_PRINTLN("Failed to connect to '%s'", networks[i].ssid);
+        }
+        break;
+      }
+    }
+  }
+  
+  WIFI_DEBUG_PRINTLN("Could not connect to any configured network");
+  return false;
+}
+
 void SerialWifiInterface::begin(int port) {
   // wifi setup is handled outside of this class, only starts the server
   server.begin(port);
+}
+
+void SerialWifiInterface::begin(WiFiCredentials* networks, size_t count, int port) {
+  WiFi.mode(WIFI_STA);
+  
+  if (connectToAvailableNetwork(networks, count)) {
+    server.begin(port);
+    WIFI_DEBUG_PRINTLN("WiFi server started on port %d", port);
+  } else {
+    WIFI_DEBUG_PRINTLN("WiFi initialization failed - server not started");
+  }
 }
 
 // ---------- public methods

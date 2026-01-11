@@ -25,6 +25,14 @@ class SerialWifiInterface : public BaseSerialInterface {
 
   void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
 
+  // Multi-SSID support
+  struct WiFiCredentials {
+    const char* ssid;
+    const char* password;
+  };
+  
+  bool connectToAvailableNetwork(WiFiCredentials* networks, size_t count);
+
 protected:
 
 public:
@@ -36,6 +44,7 @@ public:
   }
 
   void begin(int port);
+  void begin(WiFiCredentials* networks, size_t count, int port);
 
   // BaseSerialInterface methods
   void enable() override;
