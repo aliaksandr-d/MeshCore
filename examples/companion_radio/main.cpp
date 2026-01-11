@@ -212,6 +212,7 @@ void setup() {
 
 #ifdef WIFI_SSID
   // Multi-WiFi support: try to connect to available networks
+  const int MAX_WIFI_CONNECTION_ATTEMPTS = 20;  // 20 * 500ms = 10 seconds
   bool wifi_connected = false;
   
   // Try primary WiFi first
@@ -220,7 +221,7 @@ void setup() {
   
   // Wait for connection (up to 10 seconds)
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+  while (WiFi.status() != WL_CONNECTED && attempts < MAX_WIFI_CONNECTION_ATTEMPTS) {
     delay(500);
     attempts++;
   }
@@ -236,7 +237,7 @@ void setup() {
     WIFI_DEBUG_PRINTLN("Primary WiFi failed, trying: %s", WIFI_SSID_1);
     WiFi.begin(WIFI_SSID_1, WIFI_PWD_1);
     attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    while (WiFi.status() != WL_CONNECTED && attempts < MAX_WIFI_CONNECTION_ATTEMPTS) {
       delay(500);
       attempts++;
     }
@@ -253,7 +254,7 @@ void setup() {
     WIFI_DEBUG_PRINTLN("Alternative WiFi 1 failed, trying: %s", WIFI_SSID_2);
     WiFi.begin(WIFI_SSID_2, WIFI_PWD_2);
     attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    while (WiFi.status() != WL_CONNECTED && attempts < MAX_WIFI_CONNECTION_ATTEMPTS) {
       delay(500);
       attempts++;
     }
@@ -321,10 +322,11 @@ void setup() {
 void loop() {
 #ifdef WIFI_BLE_DUAL_MODE
   // In dual mode, switch interfaces if current one is not connected
+  const unsigned long INTERFACE_SWITCH_CHECK_INTERVAL_MS = 5000;
   static unsigned long last_switch_check = 0;
   
   // Check every 5 seconds if we should switch interfaces
-  if (millis() - last_switch_check > 5000) {
+  if (millis() - last_switch_check > INTERFACE_SWITCH_CHECK_INTERVAL_MS) {
     last_switch_check = millis();
     
     bool wifi_available = (WiFi.status() == WL_CONNECTED);
