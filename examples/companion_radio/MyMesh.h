@@ -203,6 +203,7 @@ private:
   TransportKey send_scope;
 
   // Repeater mode support
+  TransportKeyStore key_store;
   RegionMap region_map, temp_map;
   RegionEntry* recv_pkt_region;
 

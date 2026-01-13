@@ -750,7 +750,8 @@ void MyMesh::onSendTimeout() {}
 
 MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui)
     : BaseChatMesh(radio, *new ArduinoMillis(), rng, rtc, *new StaticPoolPacketManager(16), tables),
-      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui) {
+      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui),
+      region_map(key_store), temp_map(key_store) {
   _iter_started = false;
   _cli_rescue = false;
   offline_queue_len = 0;
@@ -842,9 +843,8 @@ void MyMesh::begin(bool has_display) {
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
 
-  // Initialize region map for repeater mode
+  // Initialize region map wildcard for repeater mode
   if (_prefs.enable_repeater) {
-    region_map.begin();
     region_map.getWildcard().flags = 0;  // allow everything by default
   }
 
