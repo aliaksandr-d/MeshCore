@@ -27,4 +27,6 @@ struct NodePrefs {  // persisted to file
   uint8_t  buzzer_quiet;
   uint8_t  enable_repeater;  // enable packet forwarding (repeater mode)
   uint8_t  flood_max;        // max hops for flood packets when repeater enabled
+  uint8_t  enable_usb;       // enable USB serial interface (0=disabled, 1=enabled)
+  uint8_t  enable_multi_wifi;  // enable multi-WiFi support (0=single SSID, 1=up to 3 SSIDs)
 };

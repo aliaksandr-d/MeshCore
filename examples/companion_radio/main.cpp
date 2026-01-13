@@ -210,36 +210,71 @@ void setup() {
   );
 
 #if defined(MULTI_WIFI) && defined(BLE_PIN_CODE)
-  // Try to connect to WiFi (with multiple SSIDs support)
+  // Multi-WiFi with BLE fallback support
   bool wifi_connected = false;
   
   #ifdef WIFI_SSID
-    // Build arrays of SSIDs and passwords - ensure they're always paired
-    struct WifiCredentials {
-      const char* ssid;
-      const char* password;
-    };
-    
-    WifiCredentials wifi_credentials[] = {
-      {WIFI_SSID, WIFI_PWD}
-      #if defined(WIFI_SSID2) && defined(WIFI_PWD2)
-        , {WIFI_SSID2, WIFI_PWD2}
-      #endif
-      #if defined(WIFI_SSID3) && defined(WIFI_PWD3)
-        , {WIFI_SSID3, WIFI_PWD3}
-      #endif
-    };
-    int num_networks = sizeof(wifi_credentials) / sizeof(wifi_credentials[0]);
-    
-    Serial.println("Attempting WiFi connection...");
-    for (int i = 0; i < num_networks && !wifi_connected; i++) {
-      Serial.print("Trying SSID: ");
-      Serial.println(wifi_credentials[i].ssid);
-      WiFi.begin(wifi_credentials[i].ssid, wifi_credentials[i].password);
+    // Check if multi-WiFi is enabled in preferences
+    if (the_mesh.getNodePrefs()->enable_multi_wifi) {
+      // Build arrays of SSIDs and passwords - ensure they're always paired
+      struct WifiCredentials {
+        const char* ssid;
+        const char* password;
+      };
       
-      // Wait up to 10 seconds for connection
+      WifiCredentials wifi_credentials[] = {
+        {WIFI_SSID, WIFI_PWD}
+        #if defined(WIFI_SSID2) && defined(WIFI_PWD2)
+          , {WIFI_SSID2, WIFI_PWD2}
+        #endif
+        #if defined(WIFI_SSID3) && defined(WIFI_PWD3)
+          , {WIFI_SSID3, WIFI_PWD3}
+        #endif
+      };
+      int num_networks = sizeof(wifi_credentials) / sizeof(wifi_credentials[0]);
+      
+      Serial.println("Multi-WiFi enabled, attempting WiFi connection...");
+      WiFi.mode(WIFI_STA);  // Set WiFi to station mode
+      
+      for (int i = 0; i < num_networks && !wifi_connected; i++) {
+        Serial.print("Trying SSID ");
+        Serial.print(i + 1);
+        Serial.print("/");
+        Serial.print(num_networks);
+        Serial.print(": ");
+        Serial.println(wifi_credentials[i].ssid);
+        
+        WiFi.disconnect();
+        delay(100);
+        WiFi.begin(wifi_credentials[i].ssid, wifi_credentials[i].password);
+        
+        // Wait up to 15 seconds for connection
+        int attempts = 0;
+        while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+          delay(500);
+          Serial.print(".");
+          attempts++;
+        }
+        
+        if (WiFi.status() == WL_CONNECTED) {
+          wifi_connected = true;
+          Serial.println("\nWiFi connected!");
+          Serial.print("IP address: ");
+          Serial.println(WiFi.localIP());
+          Serial.print("RSSI: ");
+          Serial.println(WiFi.RSSI());
+        } else {
+          Serial.println("\nFailed to connect");
+        }
+      }
+    } else {
+      // Single WiFi mode - only try first SSID
+      Serial.println("Single WiFi mode, attempting connection...");
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(WIFI_SSID, WIFI_PWD);
+      
       int attempts = 0;
-      while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+      while (WiFi.status() != WL_CONNECTED && attempts < 30) {
         delay(500);
         Serial.print(".");
         attempts++;
@@ -252,7 +287,6 @@ void setup() {
         Serial.println(WiFi.localIP());
       } else {
         Serial.println("\nFailed to connect");
-        WiFi.disconnect();
       }
     }
   #endif

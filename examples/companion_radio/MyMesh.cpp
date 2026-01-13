@@ -790,6 +790,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.enable_repeater = 0;  // disabled by default
 #endif
   _prefs.flood_max = 7;        // default max hops for flood packets
+  _prefs.enable_usb = 1;       // USB enabled by default
+  _prefs.enable_multi_wifi = 1;  // multi-WiFi enabled by default for multi-wifi variants
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -829,6 +831,8 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
   _prefs.enable_repeater = constrain(_prefs.enable_repeater, 0, 1);
   _prefs.flood_max = constrain(_prefs.flood_max, 1, 15);
+  _prefs.enable_usb = constrain(_prefs.enable_usb, 0, 1);
+  _prefs.enable_multi_wifi = constrain(_prefs.enable_multi_wifi, 0, 1);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {

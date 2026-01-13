@@ -20,25 +20,60 @@ These firmwares connect to external apps but do NOT forward/repeat packets:
 - **`heltec_v4_companion_radio_ble`** - Bluetooth Low Energy connection
 - **`heltec_v4_companion_radio_wifi`** - WiFi TCP connection
 
-### Companion + Repeater Firmwares
+### Companion + Repeater Firmwares (Simplified with Runtime Configuration)
 
-These firmwares combine companion functionality WITH packet forwarding (repeater mode):
+These firmwares combine companion functionality WITH packet forwarding (repeater mode) and support runtime configuration of all features:
 
-- **`heltec_v4_companion_repeater_usb`** - USB connection + repeater enabled by default
-- **`heltec_v4_companion_repeater_ble`** - BLE connection + repeater enabled by default
-- **`heltec_v4_companion_repeater_wifi`** - WiFi connection + repeater enabled by default
-- **`heltec_v4_companion_repeater_radio_usb_ble`** - BLE primary interface + USB serial available for debugging + repeater enabled by default (combines everything in one firmware)
-- **`heltec_v4_companion_repeater_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial + repeater enabled
-- **`Heltec_v3_companion_repeater_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial + repeater enabled (Heltec V3)
+- **`heltec_v4_companion_repeater_radio_usb_ble_wifi`** - Multi-WiFi (up to 3 SSIDs) + BLE fallback + USB serial + repeater enabled by default (Heltec V4)
+- **`Heltec_v3_companion_repeater_radio_usb_ble_wifi`** - Multi-WiFi (up to 3 SSIDs) + BLE fallback + USB serial + repeater enabled by default (Heltec V3)
 
-### Companion Firmwares (Multi-Interface with BLE/WiFi Fallback)
+> **Note**: These firmwares support **runtime configuration** of repeater, USB, and multi-WiFi features. You can enable/disable these features without reflashing using meshcli commands (see Runtime Configuration section below).
 
-These firmwares support multiple WiFi SSIDs and fall back to BLE if WiFi fails, WITHOUT repeater mode by default:
+## Runtime Configuration
 
-- **`heltec_v4_companion_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial (NO repeater by default)
-- **`Heltec_v3_companion_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial (NO repeater by default, Heltec V3)
+The companion firmware now supports runtime configuration of key features. These settings are persisted to flash storage and survive reboots.
 
-> **Note**: The `radio_usb_ble` variant uses BLE as the primary companion interface for app connectivity, while USB serial remains available for debugging and monitoring. The `radio_usb_ble_wifi` variants try to connect to WiFi first (supporting up to 3 different SSIDs), and fall back to BLE if all WiFi connections fail. This provides maximum flexibility for deployment in different network environments.
+### Available Parameters
+
+1. **`enable_repeater`** (0 or 1): Enable/disable packet forwarding (repeater mode)
+2. **`flood_max`** (1-15): Maximum number of hops for flood packets when repeater is enabled
+3. **`enable_usb`** (0 or 1): Enable/disable USB serial interface
+4. **`enable_multi_wifi`** (0 or 1): Enable/disable multi-WiFi support (1=try up to 3 SSIDs, 0=use only first SSID)
+
+### Configuring via meshcli
+
+If your device supports meshcli access (check the simple_repeater documentation), you can modify these parameters at runtime:
+
+```bash
+# Connect via serial or network
+meshcli connect /dev/ttyUSB0  # or meshcli connect <ip_address>
+
+# View current settings
+config show
+
+# Enable/disable repeater mode
+config set enable_repeater 1   # Enable
+config set enable_repeater 0   # Disable
+
+# Set maximum flood hops
+config set flood_max 10        # Allow up to 10 hops
+
+# Enable/disable USB serial
+config set enable_usb 1        # Enable USB
+config set enable_usb 0        # Disable USB
+
+# Enable/disable multi-WiFi
+config set enable_multi_wifi 1  # Use all configured SSIDs
+config set enable_multi_wifi 0  # Use only first SSID
+
+# Save settings (they persist across reboots)
+config save
+
+# Reboot to apply changes
+reboot
+```
+
+> **Note**: The exact meshcli commands may vary depending on the firmware implementation. If meshcli is not available for companion firmware, these settings can only be configured through the companion app (if supported) or by modifying the source code and reflashing.
 
 ## Repeater Mode
 

@@ -224,6 +224,8 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet));               // 84
     file.read((uint8_t *)&_prefs.enable_repeater, sizeof(_prefs.enable_repeater));         // 85
     file.read((uint8_t *)&_prefs.flood_max, sizeof(_prefs.flood_max));                     // 86
+    file.read((uint8_t *)&_prefs.enable_usb, sizeof(_prefs.enable_usb));                   // 87
+    file.read((uint8_t *)&_prefs.enable_multi_wifi, sizeof(_prefs.enable_multi_wifi));     // 88
 
     file.close();
   }
@@ -258,6 +260,8 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet));               // 84
     file.write((uint8_t *)&_prefs.enable_repeater, sizeof(_prefs.enable_repeater));         // 85
     file.write((uint8_t *)&_prefs.flood_max, sizeof(_prefs.flood_max));                     // 86
+    file.write((uint8_t *)&_prefs.enable_usb, sizeof(_prefs.enable_usb));                   // 87
+    file.write((uint8_t *)&_prefs.enable_multi_wifi, sizeof(_prefs.enable_multi_wifi));     // 88
 
     file.close();
   }
