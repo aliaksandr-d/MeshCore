@@ -416,14 +416,19 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
   
   // Check if this is a flood packet (region checks only apply to flood packets)
   if (!packet->isRouteFlood()) {
-    return true;  // Allow forwarding of non-flood packets
+    // Non-flood packets (DIRECT route) use explicit paths and don't require region checks.
+    // Companion nodes forward these to maintain end-to-end connectivity even if they don't
+    // participate in flood-based discovery. This differs from dedicated repeaters which may
+    // apply stricter region-based filtering.
+    return true;
   }
   
   // For flood packets, check max hops
   if (packet->path_len >= _prefs.flood_max) return false;
   
   // For flood packets, check region permissions
-  // recv_pkt_region is set by filterRecvFloodPacket() before this is called
+  // recv_pkt_region is set by filterRecvFloodPacket() during packet receive processing,
+  // before allowPacketForward() is called. It's valid only for the current packet being processed.
   if (recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
