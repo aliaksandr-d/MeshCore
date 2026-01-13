@@ -414,11 +414,17 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
   // Check if repeater mode is enabled
   if (!_prefs.enable_repeater) return false;
   
-  // Check max flood hops
-  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
+  // Check if this is a flood packet (region checks only apply to flood packets)
+  if (!packet->isRouteFlood()) {
+    return true;  // Allow forwarding of non-flood packets
+  }
   
-  // Check region permissions for flood packets
-  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
+  // For flood packets, check max hops
+  if (packet->path_len >= _prefs.flood_max) return false;
+  
+  // For flood packets, check region permissions
+  // recv_pkt_region is set by filterRecvFloodPacket() before this is called
+  if (recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }

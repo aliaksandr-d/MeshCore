@@ -205,6 +205,9 @@ private:
   // Repeater mode support
   TransportKeyStore key_store;
   RegionMap region_map, temp_map;
+  // recv_pkt_region is set by filterRecvFloodPacket() and used by allowPacketForward()
+  // to determine if a received packet should be forwarded. Thread-safe as mesh operations
+  // are single-threaded in the main loop.
   RegionEntry* recv_pkt_region;
 
   uint8_t cmd_frame[MAX_FRAME_SIZE + 1];
