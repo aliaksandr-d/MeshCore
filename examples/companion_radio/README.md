@@ -27,6 +27,9 @@ These firmwares combine companion functionality WITH packet forwarding (repeater
 - **`heltec_v4_companion_repeater_usb`** - USB connection + repeater enabled by default
 - **`heltec_v4_companion_repeater_ble`** - BLE connection + repeater enabled by default
 - **`heltec_v4_companion_repeater_wifi`** - WiFi connection + repeater enabled by default
+- **`heltec_v4_companion_repeater_radio_usb_ble`** - BLE primary interface + USB serial available for debugging + repeater enabled by default (combines everything in one firmware)
+
+> **Note**: The `radio_usb_ble` variant uses BLE as the primary companion interface for app connectivity, while USB serial remains available for debugging and monitoring. This provides the most flexibility for development and deployment.
 
 ## Repeater Mode
 
