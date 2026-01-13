@@ -28,8 +28,17 @@ These firmwares combine companion functionality WITH packet forwarding (repeater
 - **`heltec_v4_companion_repeater_ble`** - BLE connection + repeater enabled by default
 - **`heltec_v4_companion_repeater_wifi`** - WiFi connection + repeater enabled by default
 - **`heltec_v4_companion_repeater_radio_usb_ble`** - BLE primary interface + USB serial available for debugging + repeater enabled by default (combines everything in one firmware)
+- **`heltec_v4_companion_repeater_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial + repeater enabled
+- **`Heltec_v3_companion_repeater_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial + repeater enabled (Heltec V3)
 
-> **Note**: The `radio_usb_ble` variant uses BLE as the primary companion interface for app connectivity, while USB serial remains available for debugging and monitoring. This provides the most flexibility for development and deployment.
+### Companion Firmwares (Multi-Interface with BLE/WiFi Fallback)
+
+These firmwares support multiple WiFi SSIDs and fall back to BLE if WiFi fails, WITHOUT repeater mode by default:
+
+- **`heltec_v4_companion_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial (NO repeater by default)
+- **`Heltec_v3_companion_radio_usb_ble_wifi`** - WiFi primary (up to 3 SSIDs) with BLE fallback + USB serial (NO repeater by default, Heltec V3)
+
+> **Note**: The `radio_usb_ble` variant uses BLE as the primary companion interface for app connectivity, while USB serial remains available for debugging and monitoring. The `radio_usb_ble_wifi` variants try to connect to WiFi first (supporting up to 3 different SSIDs), and fall back to BLE if all WiFi connections fail. This provides maximum flexibility for deployment in different network environments.
 
 ## Repeater Mode
 
@@ -93,6 +102,29 @@ FIRMWARE_VERSION="v1.0.0" bash build.sh build-firmware heltec_v4_companion_repea
 - Connects to WiFi SSID specified in build flags
 - Listens on TCP port 5000 by default
 - Set `WIFI_SSID` and `WIFI_PWD` in platformio.ini or environment
+
+### Multi-WiFi Support (radio_usb_ble_wifi variants)
+The firmware variants with multi-WiFi support can connect to up to 3 different WiFi networks:
+- **Primary SSID**: Configured via `WIFI_SSID` and `WIFI_PWD`
+- **Secondary SSID**: Configured via `WIFI_SSID2` and `WIFI_PWD2` (optional)
+- **Tertiary SSID**: Configured via `WIFI_SSID3` and `WIFI_PWD3` (optional)
+
+The firmware will attempt to connect to each WiFi network in order, using the first one that's available. If all WiFi connections fail, it automatically falls back to BLE mode for connectivity. This is useful for:
+- Devices that move between different WiFi networks (home, office, etc.)
+- Redundancy in case one WiFi network goes down
+- Deployment in environments with multiple WiFi access points
+
+Configure in `platformio.ini`:
+```ini
+-D WIFI_SSID='"myhome"'
+-D WIFI_PWD='"homepassword"'
+-D WIFI_SSID2='"myoffice"'
+-D WIFI_PWD2='"officepassword"'
+-D WIFI_SSID3='"backup"'
+-D WIFI_PWD3='"backuppassword"'
+```
+
+> **Note**: The secondary and tertiary SSIDs are optional. You can configure just one or two WiFi networks if desired.
 
 ## Data Storage
 

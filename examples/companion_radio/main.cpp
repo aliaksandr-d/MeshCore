@@ -35,7 +35,17 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(MULTI_WIFI) && defined(BLE_PIN_CODE)
+    // Multi-WiFi with BLE fallback support
+    #include <helpers/esp32/SerialWifiInterface.h>
+    #include <helpers/esp32/SerialBLEInterface.h>
+    SerialWifiInterface wifi_interface;
+    SerialBLEInterface ble_interface;
+    BaseSerialInterface* serial_interface = NULL;  // Will be set based on connection
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+  #elif defined(WIFI_SSID)
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
@@ -88,7 +98,11 @@ static uint32_t _atoi(const char* sp) {
 /* GLOBAL OBJECTS */
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
-  UITask ui_task(&board, &serial_interface);
+  #if defined(ESP32) && defined(MULTI_WIFI) && defined(BLE_PIN_CODE)
+    UITask ui_task(&board, serial_interface);  // serial_interface is a pointer for MULTI_WIFI
+  #else
+    UITask ui_task(&board, &serial_interface);
+  #endif
 #endif
 
 StdRNG fast_rng;
@@ -195,21 +209,90 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
+#if defined(MULTI_WIFI) && defined(BLE_PIN_CODE)
+  // Try to connect to WiFi (with multiple SSIDs support)
+  bool wifi_connected = false;
+  
+  #ifdef WIFI_SSID
+    const char* wifi_ssids[] = {
+      WIFI_SSID
+      #ifdef WIFI_SSID2
+        , WIFI_SSID2
+      #endif
+      #ifdef WIFI_SSID3
+        , WIFI_SSID3
+      #endif
+    };
+    const char* wifi_pwds[] = {
+      WIFI_PWD
+      #ifdef WIFI_PWD2
+        , WIFI_PWD2
+      #endif
+      #ifdef WIFI_PWD3
+        , WIFI_PWD3
+      #endif
+    };
+    int num_ssids = sizeof(wifi_ssids) / sizeof(wifi_ssids[0]);
+    
+    Serial.println("Attempting WiFi connection...");
+    for (int i = 0; i < num_ssids && !wifi_connected; i++) {
+      Serial.print("Trying SSID: ");
+      Serial.println(wifi_ssids[i]);
+      WiFi.begin(wifi_ssids[i], wifi_pwds[i]);
+      
+      // Wait up to 10 seconds for connection
+      int attempts = 0;
+      while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+        delay(500);
+        Serial.print(".");
+        attempts++;
+      }
+      
+      if (WiFi.status() == WL_CONNECTED) {
+        wifi_connected = true;
+        Serial.println("\nWiFi connected!");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+      } else {
+        Serial.println("\nFailed to connect");
+        WiFi.disconnect();
+      }
+    }
+  #endif
+  
+  // If WiFi connected, use WiFi interface; otherwise fall back to BLE
+  if (wifi_connected) {
+    Serial.println("Using WiFi interface");
+    wifi_interface.begin(TCP_PORT);
+    serial_interface = &wifi_interface;
+  } else {
+    Serial.println("WiFi failed, falling back to BLE interface");
+    char dev_name[32+16];
+    sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
+    ble_interface.begin(dev_name, the_mesh.getBLEPin());
+    serial_interface = &ble_interface;
+  }
+  
+  serial_interface->enable();
+  the_mesh.startInterface(*serial_interface);
+#elif defined(WIFI_SSID)
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
+  the_mesh.startInterface(serial_interface);
 #elif defined(BLE_PIN_CODE)
   char dev_name[32+16];
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
+  the_mesh.startInterface(serial_interface);
 #elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
   serial_interface.begin(companion_serial);
+  the_mesh.startInterface(serial_interface);
 #else
   serial_interface.begin(Serial);
-#endif
   the_mesh.startInterface(serial_interface);
+#endif
 #else
   #error "need to define filesystem"
 #endif
