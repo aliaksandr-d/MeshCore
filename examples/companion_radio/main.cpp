@@ -214,31 +214,28 @@ void setup() {
   bool wifi_connected = false;
   
   #ifdef WIFI_SSID
-    const char* wifi_ssids[] = {
-      WIFI_SSID
-      #ifdef WIFI_SSID2
-        , WIFI_SSID2
+    // Build arrays of SSIDs and passwords - ensure they're always paired
+    struct WifiCredentials {
+      const char* ssid;
+      const char* password;
+    };
+    
+    WifiCredentials wifi_credentials[] = {
+      {WIFI_SSID, WIFI_PWD}
+      #if defined(WIFI_SSID2) && defined(WIFI_PWD2)
+        , {WIFI_SSID2, WIFI_PWD2}
       #endif
-      #ifdef WIFI_SSID3
-        , WIFI_SSID3
+      #if defined(WIFI_SSID3) && defined(WIFI_PWD3)
+        , {WIFI_SSID3, WIFI_PWD3}
       #endif
     };
-    const char* wifi_pwds[] = {
-      WIFI_PWD
-      #ifdef WIFI_PWD2
-        , WIFI_PWD2
-      #endif
-      #ifdef WIFI_PWD3
-        , WIFI_PWD3
-      #endif
-    };
-    int num_ssids = sizeof(wifi_ssids) / sizeof(wifi_ssids[0]);
+    int num_networks = sizeof(wifi_credentials) / sizeof(wifi_credentials[0]);
     
     Serial.println("Attempting WiFi connection...");
-    for (int i = 0; i < num_ssids && !wifi_connected; i++) {
+    for (int i = 0; i < num_networks && !wifi_connected; i++) {
       Serial.print("Trying SSID: ");
-      Serial.println(wifi_ssids[i]);
-      WiFi.begin(wifi_ssids[i], wifi_pwds[i]);
+      Serial.println(wifi_credentials[i].ssid);
+      WiFi.begin(wifi_credentials[i].ssid, wifi_credentials[i].password);
       
       // Wait up to 10 seconds for connection
       int attempts = 0;
