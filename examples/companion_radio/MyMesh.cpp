@@ -391,7 +391,39 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
   // REVISIT: try to determine which Region (from transport_codes[1]) that Sender is indicating for replies/responses
   //    if unknown, fallback to finding Region from transport_codes[0], the 'scope' used by Sender
+  
+  // For repeater mode: determine region for packet (apply later in allowPacketForward())
+  if (_prefs.enable_repeater) {
+    if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
+      recv_pkt_region = region_map.findMatch(packet, REGION_DENY_FLOOD);
+    } else if (packet->getRouteType() == ROUTE_TYPE_FLOOD) {
+      if (region_map.getWildcard().flags & REGION_DENY_FLOOD) {
+        recv_pkt_region = NULL;
+      } else {
+        recv_pkt_region = &region_map.getWildcard();
+      }
+    } else {
+      recv_pkt_region = NULL;
+    }
+  }
+  
   return false;
+}
+
+bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
+  // Check if repeater mode is enabled
+  if (!_prefs.enable_repeater) return false;
+  
+  // Check max flood hops
+  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
+  
+  // Check region permissions for flood packets
+  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
+    return false;
+  }
+  
+  return true;
 }
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -729,6 +761,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
   memset(send_scope.key, 0, sizeof(send_scope.key));
+  recv_pkt_region = NULL;
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
@@ -739,6 +772,12 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+#ifdef ENABLE_REPEATER_DEFAULT
+  _prefs.enable_repeater = ENABLE_REPEATER_DEFAULT;  // use build flag default
+#else
+  _prefs.enable_repeater = 0;  // disabled by default
+#endif
+  _prefs.flood_max = 7;        // default max hops for flood packets
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -776,6 +815,8 @@ void MyMesh::begin(bool has_display) {
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
+  _prefs.enable_repeater = constrain(_prefs.enable_repeater, 0, 1);
+  _prefs.flood_max = constrain(_prefs.flood_max, 1, 15);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -800,6 +841,12 @@ void MyMesh::begin(bool has_display) {
   _store->loadContacts(this);
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
+
+  // Initialize region map for repeater mode
+  if (_prefs.enable_repeater) {
+    region_map.begin();
+    region_map.getWildcard().flags = 0;  // allow everything by default
+  }
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);

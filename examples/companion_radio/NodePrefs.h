@@ -25,4 +25,6 @@ struct NodePrefs {  // persisted to file
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
   uint8_t  buzzer_quiet;
+  uint8_t  enable_repeater;  // enable packet forwarding (repeater mode)
+  uint8_t  flood_max;        // max hops for flood packets when repeater enabled
 };
