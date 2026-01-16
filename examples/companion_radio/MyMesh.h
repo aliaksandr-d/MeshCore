@@ -32,6 +32,7 @@
 #include <helpers/IdentityStore.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
+#include <helpers/RegionMap.h>
 #include <target.h>
 
 /* ---------------------------------- CONFIGURATION ------------------------------------- */
@@ -108,6 +109,7 @@ protected:
   int calcRxDelay(float score, uint32_t air_time) const override;
   uint8_t getExtraAckTransmitCount() const override;
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
+  bool allowPacketForward(const mesh::Packet* packet) override;
 
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
@@ -199,6 +201,16 @@ private:
   unsigned long dirty_contacts_expiry;
 
   TransportKey send_scope;
+
+  // Repeater mode support
+  TransportKeyStore key_store;
+  RegionMap region_map, temp_map;
+  // recv_pkt_region: Set fresh by filterRecvFloodPacket() for each received packet,
+  // then used by allowPacketForward() during the same packet's processing.
+  // Thread-safe as mesh operations are single-threaded in the main loop.
+  // Lifecycle: set during filterRecvFloodPacket() -> used in allowPacketForward() -> 
+  // overwritten on next packet. Not explicitly cleared as it's always set before use.
+  RegionEntry* recv_pkt_region;
 
   uint8_t cmd_frame[MAX_FRAME_SIZE + 1];
   uint8_t out_frame[MAX_FRAME_SIZE + 1];

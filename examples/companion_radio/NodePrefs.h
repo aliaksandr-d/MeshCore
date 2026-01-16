@@ -25,4 +25,14 @@ struct NodePrefs {  // persisted to file
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
   uint8_t  buzzer_quiet;
+  uint8_t  enable_repeater;  // enable packet forwarding (repeater mode)
+  uint8_t  flood_max;        // max hops for flood packets when repeater enabled
+  uint8_t  enable_usb;       // enable USB serial interface (0=disabled, 1=enabled)
+  uint8_t  enable_multi_wifi;  // enable multi-WiFi support (0=single SSID, 1=up to 3 SSIDs)
+  char wifi_ssid[64];        // Primary WiFi SSID (runtime configurable)
+  char wifi_pwd[64];         // Primary WiFi password (runtime configurable)
+  char wifi_ssid2[64];       // Secondary WiFi SSID (optional, runtime configurable)
+  char wifi_pwd2[64];        // Secondary WiFi password (optional, runtime configurable)
+  char wifi_ssid3[64];       // Tertiary WiFi SSID (optional, runtime configurable)
+  char wifi_pwd3[64];        // Tertiary WiFi password (optional, runtime configurable)
 };

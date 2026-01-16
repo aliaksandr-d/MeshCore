@@ -35,7 +35,17 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(MULTI_WIFI) && defined(BLE_PIN_CODE)
+    // Multi-WiFi with BLE fallback support
+    #include <helpers/esp32/SerialWifiInterface.h>
+    #include <helpers/esp32/SerialBLEInterface.h>
+    SerialWifiInterface wifi_interface;
+    SerialBLEInterface ble_interface;
+    BaseSerialInterface* serial_interface = NULL;  // Will be set based on connection
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+  #elif defined(WIFI_SSID)
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
@@ -88,7 +98,11 @@ static uint32_t _atoi(const char* sp) {
 /* GLOBAL OBJECTS */
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
-  UITask ui_task(&board, &serial_interface);
+  #if defined(ESP32) && defined(MULTI_WIFI) && defined(BLE_PIN_CODE)
+    UITask ui_task(&board, serial_interface);  // serial_interface is a pointer for MULTI_WIFI
+  #else
+    UITask ui_task(&board, &serial_interface);
+  #endif
 #endif
 
 StdRNG fast_rng;
@@ -195,21 +209,136 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
+#if defined(MULTI_WIFI) && defined(BLE_PIN_CODE)
+  // Multi-WiFi with BLE fallback support
+  bool wifi_connected = false;
+  
+  // Use runtime WiFi credentials from NodePrefs
+  NodePrefs* prefs = the_mesh.getNodePrefs();
+  
+  // Check if we have at least one WiFi SSID configured
+  if (prefs->wifi_ssid[0] != '\0') {
+    // Check if multi-WiFi is enabled in preferences
+    if (prefs->enable_multi_wifi) {
+      // Build arrays of SSIDs and passwords from runtime config
+      struct WifiCredentials {
+        const char* ssid;
+        const char* password;
+      };
+      
+      WifiCredentials wifi_credentials[3];
+      int num_networks = 0;
+      
+      // Add configured networks
+      if (prefs->wifi_ssid[0] != '\0') {
+        wifi_credentials[num_networks].ssid = prefs->wifi_ssid;
+        wifi_credentials[num_networks].password = prefs->wifi_pwd;
+        num_networks++;
+      }
+      if (prefs->wifi_ssid2[0] != '\0') {
+        wifi_credentials[num_networks].ssid = prefs->wifi_ssid2;
+        wifi_credentials[num_networks].password = prefs->wifi_pwd2;
+        num_networks++;
+      }
+      if (prefs->wifi_ssid3[0] != '\0') {
+        wifi_credentials[num_networks].ssid = prefs->wifi_ssid3;
+        wifi_credentials[num_networks].password = prefs->wifi_pwd3;
+        num_networks++;
+      }
+      
+      if (num_networks > 0) {
+        Serial.println("Multi-WiFi enabled, attempting WiFi connection...");
+        WiFi.mode(WIFI_STA);  // Set WiFi to station mode
+        
+        for (int i = 0; i < num_networks && !wifi_connected; i++) {
+          Serial.print("Trying SSID ");
+          Serial.print(i + 1);
+          Serial.print("/");
+          Serial.print(num_networks);
+          Serial.print(": ");
+          Serial.println(wifi_credentials[i].ssid);
+          
+          WiFi.disconnect();
+          delay(100);
+          WiFi.begin(wifi_credentials[i].ssid, wifi_credentials[i].password);
+          
+          // Wait up to 15 seconds for connection
+          int attempts = 0;
+          while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+            delay(500);
+            Serial.print(".");
+            attempts++;
+          }
+          
+          if (WiFi.status() == WL_CONNECTED) {
+            wifi_connected = true;
+            Serial.println("\nWiFi connected!");
+            Serial.print("IP address: ");
+            Serial.println(WiFi.localIP());
+            Serial.print("RSSI: ");
+            Serial.println(WiFi.RSSI());
+          } else {
+            Serial.println("\nFailed to connect");
+          }
+        }
+      }
+    } else {
+      // Single WiFi mode - only try first SSID
+      Serial.println("Single WiFi mode, attempting connection...");
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(prefs->wifi_ssid, prefs->wifi_pwd);
+      
+      int attempts = 0;
+      while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+        delay(500);
+        Serial.print(".");
+        attempts++;
+      }
+      
+      if (WiFi.status() == WL_CONNECTED) {
+        wifi_connected = true;
+        Serial.println("\nWiFi connected!");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+      } else {
+        Serial.println("\nFailed to connect");
+      }
+    }
+  }
+  
+  // If WiFi connected, use WiFi interface; otherwise fall back to BLE
+  if (wifi_connected) {
+    Serial.println("Using WiFi interface");
+    wifi_interface.begin(TCP_PORT);
+    serial_interface = &wifi_interface;
+  } else {
+    Serial.println("WiFi failed, falling back to BLE interface");
+    char dev_name[32+16];
+    sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
+    ble_interface.begin(dev_name, the_mesh.getBLEPin());
+    serial_interface = &ble_interface;
+  }
+  
+  serial_interface->enable();
+  the_mesh.startInterface(*serial_interface);
+#elif defined(WIFI_SSID)
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
+  the_mesh.startInterface(serial_interface);
 #elif defined(BLE_PIN_CODE)
   char dev_name[32+16];
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
+  the_mesh.startInterface(serial_interface);
 #elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
   serial_interface.begin(companion_serial);
+  the_mesh.startInterface(serial_interface);
 #else
   serial_interface.begin(Serial);
-#endif
   the_mesh.startInterface(serial_interface);
+#endif
 #else
   #error "need to define filesystem"
 #endif

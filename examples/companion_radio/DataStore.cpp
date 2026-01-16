@@ -222,6 +222,16 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read(pad, 2);                                                                     // 78
     file.read((uint8_t *)&_prefs.ble_pin, sizeof(_prefs.ble_pin));                         // 80
     file.read((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet));               // 84
+    file.read((uint8_t *)&_prefs.enable_repeater, sizeof(_prefs.enable_repeater));         // 85
+    file.read((uint8_t *)&_prefs.flood_max, sizeof(_prefs.flood_max));                     // 86
+    file.read((uint8_t *)&_prefs.enable_usb, sizeof(_prefs.enable_usb));                   // 87
+    file.read((uint8_t *)&_prefs.enable_multi_wifi, sizeof(_prefs.enable_multi_wifi));     // 88
+    file.read((uint8_t *)_prefs.wifi_ssid, sizeof(_prefs.wifi_ssid));                      // 89
+    file.read((uint8_t *)_prefs.wifi_pwd, sizeof(_prefs.wifi_pwd));                        // 153
+    file.read((uint8_t *)_prefs.wifi_ssid2, sizeof(_prefs.wifi_ssid2));                    // 217
+    file.read((uint8_t *)_prefs.wifi_pwd2, sizeof(_prefs.wifi_pwd2));                      // 281
+    file.read((uint8_t *)_prefs.wifi_ssid3, sizeof(_prefs.wifi_ssid3));                    // 345
+    file.read((uint8_t *)_prefs.wifi_pwd3, sizeof(_prefs.wifi_pwd3));                      // 409
 
     file.close();
   }
@@ -254,6 +264,16 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write(pad, 2);                                                                     // 78
     file.write((uint8_t *)&_prefs.ble_pin, sizeof(_prefs.ble_pin));                         // 80
     file.write((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet));               // 84
+    file.write((uint8_t *)&_prefs.enable_repeater, sizeof(_prefs.enable_repeater));         // 85
+    file.write((uint8_t *)&_prefs.flood_max, sizeof(_prefs.flood_max));                     // 86
+    file.write((uint8_t *)&_prefs.enable_usb, sizeof(_prefs.enable_usb));                   // 87
+    file.write((uint8_t *)&_prefs.enable_multi_wifi, sizeof(_prefs.enable_multi_wifi));     // 88
+    file.write((uint8_t *)_prefs.wifi_ssid, sizeof(_prefs.wifi_ssid));                      // 89
+    file.write((uint8_t *)_prefs.wifi_pwd, sizeof(_prefs.wifi_pwd));                        // 153
+    file.write((uint8_t *)_prefs.wifi_ssid2, sizeof(_prefs.wifi_ssid2));                    // 217
+    file.write((uint8_t *)_prefs.wifi_pwd2, sizeof(_prefs.wifi_pwd2));                      // 281
+    file.write((uint8_t *)_prefs.wifi_ssid3, sizeof(_prefs.wifi_ssid3));                    // 345
+    file.write((uint8_t *)_prefs.wifi_pwd3, sizeof(_prefs.wifi_pwd3));                      // 409
 
     file.close();
   }

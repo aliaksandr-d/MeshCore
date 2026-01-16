@@ -391,7 +391,50 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
   // REVISIT: try to determine which Region (from transport_codes[1]) that Sender is indicating for replies/responses
   //    if unknown, fallback to finding Region from transport_codes[0], the 'scope' used by Sender
+  
+  // For repeater mode: determine region for packet (apply later in allowPacketForward())
+  if (_prefs.enable_repeater) {
+    if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
+      recv_pkt_region = region_map.findMatch(packet, REGION_DENY_FLOOD);
+    } else if (packet->getRouteType() == ROUTE_TYPE_FLOOD) {
+      if (region_map.getWildcard().flags & REGION_DENY_FLOOD) {
+        recv_pkt_region = NULL;
+      } else {
+        recv_pkt_region = &region_map.getWildcard();
+      }
+    } else {
+      recv_pkt_region = NULL;
+    }
+  }
+  
   return false;
+}
+
+bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
+  // Check if repeater mode is enabled
+  if (!_prefs.enable_repeater) return false;
+  
+  // Check if this is a flood packet (region checks only apply to flood packets)
+  if (!packet->isRouteFlood()) {
+    // Non-flood packets (DIRECT route) use explicit paths and don't require region checks.
+    // Companion nodes forward these to maintain end-to-end connectivity even if they don't
+    // participate in flood-based discovery. This differs from dedicated repeaters which may
+    // apply stricter region-based filtering.
+    return true;
+  }
+  
+  // For flood packets, check max hops
+  if (packet->path_len >= _prefs.flood_max) return false;
+  
+  // For flood packets, check region permissions
+  // recv_pkt_region is set by filterRecvFloodPacket() during packet receive processing,
+  // before allowPacketForward() is called. It's valid only for the current packet being processed.
+  if (recv_pkt_region == NULL) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
+    return false;
+  }
+  
+  return true;
 }
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -718,7 +761,8 @@ void MyMesh::onSendTimeout() {}
 
 MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui)
     : BaseChatMesh(radio, *new ArduinoMillis(), rng, rtc, *new StaticPoolPacketManager(16), tables),
-      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui) {
+      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui),
+      region_map(key_store), temp_map(key_store) {
   _iter_started = false;
   _cli_rescue = false;
   offline_queue_len = 0;
@@ -729,6 +773,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
   memset(send_scope.key, 0, sizeof(send_scope.key));
+  recv_pkt_region = NULL;
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
@@ -739,6 +784,41 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+#ifdef ENABLE_REPEATER_DEFAULT
+  _prefs.enable_repeater = ENABLE_REPEATER_DEFAULT;  // use build flag default
+#else
+  _prefs.enable_repeater = 0;  // disabled by default
+#endif
+  _prefs.flood_max = 7;        // default max hops for flood packets
+  _prefs.enable_usb = 1;       // USB enabled by default
+  _prefs.enable_multi_wifi = 1;  // multi-WiFi enabled by default for multi-wifi variants
+  
+  // Initialize WiFi credentials from build defines (can be changed at runtime)
+#ifdef WIFI_SSID
+  strncpy(_prefs.wifi_ssid, WIFI_SSID, sizeof(_prefs.wifi_ssid) - 1);
+  _prefs.wifi_ssid[sizeof(_prefs.wifi_ssid) - 1] = '\0';
+#endif
+#ifdef WIFI_PWD
+  strncpy(_prefs.wifi_pwd, WIFI_PWD, sizeof(_prefs.wifi_pwd) - 1);
+  _prefs.wifi_pwd[sizeof(_prefs.wifi_pwd) - 1] = '\0';
+#endif
+#ifdef WIFI_SSID2
+  strncpy(_prefs.wifi_ssid2, WIFI_SSID2, sizeof(_prefs.wifi_ssid2) - 1);
+  _prefs.wifi_ssid2[sizeof(_prefs.wifi_ssid2) - 1] = '\0';
+#endif
+#ifdef WIFI_PWD2
+  strncpy(_prefs.wifi_pwd2, WIFI_PWD2, sizeof(_prefs.wifi_pwd2) - 1);
+  _prefs.wifi_pwd2[sizeof(_prefs.wifi_pwd2) - 1] = '\0';
+#endif
+#ifdef WIFI_SSID3
+  strncpy(_prefs.wifi_ssid3, WIFI_SSID3, sizeof(_prefs.wifi_ssid3) - 1);
+  _prefs.wifi_ssid3[sizeof(_prefs.wifi_ssid3) - 1] = '\0';
+#endif
+#ifdef WIFI_PWD3
+  strncpy(_prefs.wifi_pwd3, WIFI_PWD3, sizeof(_prefs.wifi_pwd3) - 1);
+  _prefs.wifi_pwd3[sizeof(_prefs.wifi_pwd3) - 1] = '\0';
+#endif
+  
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -776,6 +856,10 @@ void MyMesh::begin(bool has_display) {
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
+  _prefs.enable_repeater = constrain(_prefs.enable_repeater, 0, 1);
+  _prefs.flood_max = constrain(_prefs.flood_max, 1, 15);
+  _prefs.enable_usb = constrain(_prefs.enable_usb, 0, 1);
+  _prefs.enable_multi_wifi = constrain(_prefs.enable_multi_wifi, 0, 1);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -800,6 +884,11 @@ void MyMesh::begin(bool has_display) {
   _store->loadContacts(this);
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
+
+  // Initialize region map wildcard for repeater mode
+  if (_prefs.enable_repeater) {
+    region_map.getWildcard().flags = 0;  // allow everything by default
+  }
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
