@@ -792,6 +792,33 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.flood_max = 7;        // default max hops for flood packets
   _prefs.enable_usb = 1;       // USB enabled by default
   _prefs.enable_multi_wifi = 1;  // multi-WiFi enabled by default for multi-wifi variants
+  
+  // Initialize WiFi credentials from build defines (can be changed at runtime)
+#ifdef WIFI_SSID
+  strncpy(_prefs.wifi_ssid, WIFI_SSID, sizeof(_prefs.wifi_ssid) - 1);
+  _prefs.wifi_ssid[sizeof(_prefs.wifi_ssid) - 1] = '\0';
+#endif
+#ifdef WIFI_PWD
+  strncpy(_prefs.wifi_pwd, WIFI_PWD, sizeof(_prefs.wifi_pwd) - 1);
+  _prefs.wifi_pwd[sizeof(_prefs.wifi_pwd) - 1] = '\0';
+#endif
+#ifdef WIFI_SSID2
+  strncpy(_prefs.wifi_ssid2, WIFI_SSID2, sizeof(_prefs.wifi_ssid2) - 1);
+  _prefs.wifi_ssid2[sizeof(_prefs.wifi_ssid2) - 1] = '\0';
+#endif
+#ifdef WIFI_PWD2
+  strncpy(_prefs.wifi_pwd2, WIFI_PWD2, sizeof(_prefs.wifi_pwd2) - 1);
+  _prefs.wifi_pwd2[sizeof(_prefs.wifi_pwd2) - 1] = '\0';
+#endif
+#ifdef WIFI_SSID3
+  strncpy(_prefs.wifi_ssid3, WIFI_SSID3, sizeof(_prefs.wifi_ssid3) - 1);
+  _prefs.wifi_ssid3[sizeof(_prefs.wifi_ssid3) - 1] = '\0';
+#endif
+#ifdef WIFI_PWD3
+  strncpy(_prefs.wifi_pwd3, WIFI_PWD3, sizeof(_prefs.wifi_pwd3) - 1);
+  _prefs.wifi_pwd3[sizeof(_prefs.wifi_pwd3) - 1] = '\0';
+#endif
+  
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 

@@ -39,6 +39,13 @@ The companion firmware now supports runtime configuration of key features. These
 2. **`flood_max`** (1-15): Maximum number of hops for flood packets when repeater is enabled
 3. **`enable_usb`** (0 or 1): Enable/disable USB serial interface
 4. **`enable_multi_wifi`** (0 or 1): Enable/disable multi-WiFi support (1=try up to 3 SSIDs, 0=use only first SSID)
+5. **`wifi_ssid`** (string, max 63 chars): Primary WiFi SSID (runtime configurable)
+6. **`wifi_pwd`** (string, max 63 chars): Primary WiFi password (runtime configurable)
+7. **`wifi_ssid2`** (string, max 63 chars): Secondary WiFi SSID (optional, runtime configurable)
+8. **`wifi_pwd2`** (string, max 63 chars): Secondary WiFi password (optional, runtime configurable)
+9. **`wifi_ssid3`** (string, max 63 chars): Tertiary WiFi SSID (optional, runtime configurable)
+10. **`wifi_pwd3`** (string, max 63 chars): Tertiary WiFi password (optional, runtime configurable)
+11. **`ble_pin`** (uint32_t): BLE PIN code (runtime configurable)
 
 ### Configuring via meshcli
 
@@ -66,6 +73,17 @@ config set enable_usb 0        # Disable USB
 config set enable_multi_wifi 1  # Use all configured SSIDs
 config set enable_multi_wifi 0  # Use only first SSID
 
+# Configure WiFi credentials (NEW - runtime configurable!)
+config set wifi_ssid "MyNetwork"       # Primary WiFi SSID
+config set wifi_pwd "MyPassword"       # Primary WiFi password
+config set wifi_ssid2 "MyNetwork2"     # Secondary WiFi SSID (optional)
+config set wifi_pwd2 "MyPassword2"     # Secondary WiFi password (optional)
+config set wifi_ssid3 "MyNetwork3"     # Tertiary WiFi SSID (optional)
+config set wifi_pwd3 "MyPassword3"     # Tertiary WiFi password (optional)
+
+# Configure BLE PIN (NEW - runtime configurable!)
+config set ble_pin 123456              # BLE PIN code
+
 # Save settings (they persist across reboots)
 config save
 
@@ -73,7 +91,9 @@ config save
 reboot
 ```
 
-> **Note**: The exact meshcli commands may vary depending on the firmware implementation. If meshcli is not available for companion firmware, these settings can only be configured through the companion app (if supported) or by modifying the source code and reflashing.
+> **Important**: WiFi credentials and BLE PIN are now stored in flash memory and can be changed without firmware recompilation. The build-time defines (`WIFI_SSID`, `WIFI_PWD`, etc.) in platformio.ini are only used as initial defaults on first boot. After that, the runtime values from NodePrefs are used.
+
+> **Note**: The exact meshcli commands may vary depending on the firmware implementation. If meshcli is not available for companion firmware, these settings can only be configured through the companion app (if supported).
 
 ## Repeater Mode
 
