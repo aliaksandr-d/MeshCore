@@ -35,4 +35,6 @@ struct NodePrefs {  // persisted to file
   char wifi_pwd2[64];        // Secondary WiFi password (optional, runtime configurable)
   char wifi_ssid3[64];       // Tertiary WiFi SSID (optional, runtime configurable)
   char wifi_pwd3[64];        // Tertiary WiFi password (optional, runtime configurable)
+  uint8_t enable_ping_command;  // enable automatic ping response (0=disabled, 1=enabled)
+  char ping_command_channels[128];  // comma-separated list of channels to monitor for ping (e.g., "#test,#bot")
 };

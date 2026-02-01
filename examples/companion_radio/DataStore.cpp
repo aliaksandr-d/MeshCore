@@ -232,6 +232,8 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)_prefs.wifi_pwd2, sizeof(_prefs.wifi_pwd2));                      // 281
     file.read((uint8_t *)_prefs.wifi_ssid3, sizeof(_prefs.wifi_ssid3));                    // 345
     file.read((uint8_t *)_prefs.wifi_pwd3, sizeof(_prefs.wifi_pwd3));                      // 409
+    file.read((uint8_t *)&_prefs.enable_ping_command, sizeof(_prefs.enable_ping_command)); // 473
+    file.read((uint8_t *)_prefs.ping_command_channels, sizeof(_prefs.ping_command_channels)); // 474
 
     file.close();
   }
@@ -274,6 +276,8 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)_prefs.wifi_pwd2, sizeof(_prefs.wifi_pwd2));                      // 281
     file.write((uint8_t *)_prefs.wifi_ssid3, sizeof(_prefs.wifi_ssid3));                    // 345
     file.write((uint8_t *)_prefs.wifi_pwd3, sizeof(_prefs.wifi_pwd3));                      // 409
+    file.write((uint8_t *)&_prefs.enable_ping_command, sizeof(_prefs.enable_ping_command)); // 473
+    file.write((uint8_t *)_prefs.ping_command_channels, sizeof(_prefs.ping_command_channels)); // 474
 
     file.close();
   }

@@ -463,6 +463,12 @@ void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pk
 void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                            const char *text) {
   markConnectionActive(from); // in case this is from a server, and we have a connection
+  
+  // Handle ping command for direct messages
+  if (isPingCommandEnabled() && isPingCommand(text)) {
+    sendPongReply(from);
+  }
+  
   queueMessage(from, TXT_TYPE_PLAIN, pkt, sender_timestamp, NULL, 0, text);
 }
 
@@ -482,6 +488,17 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
 
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
+  // Handle ping command for channel messages
+  uint8_t channel_idx = findChannelIdx(channel);
+  if (isPingCommandEnabled()) {
+    ChannelDetails channel_details;
+    if (getChannel(channel_idx, channel_details)) {
+      if (shouldMonitorChannelForPing(channel_details.name) && isPingCommand(text)) {
+        sendPongReply(channel);
+      }
+    }
+  }
+  
   int i = 0;
   if (app_target_ver >= 3) {
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
@@ -492,7 +509,6 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
   }
 
-  uint8_t channel_idx = findChannelIdx(channel);
   out_frame[i++] = channel_idx;
   uint8_t path_len = out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
 
@@ -819,6 +835,20 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.wifi_pwd3[sizeof(_prefs.wifi_pwd3) - 1] = '\0';
 #endif
   
+  // Initialize ping command settings from build defines (can be changed at runtime)
+#ifdef ENABLE_PING_COMMAND
+  _prefs.enable_ping_command = ENABLE_PING_COMMAND;  // use build flag default
+#else
+  _prefs.enable_ping_command = 0;  // disabled by default
+#endif
+
+#ifdef PING_COMMAND_CHANNELS
+  strncpy(_prefs.ping_command_channels, PING_COMMAND_CHANNELS, sizeof(_prefs.ping_command_channels) - 1);
+  _prefs.ping_command_channels[sizeof(_prefs.ping_command_channels) - 1] = '\0';
+#else
+  _prefs.ping_command_channels[0] = '\0';  // empty by default (monitor direct messages only)
+#endif
+  
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -860,6 +890,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.flood_max = constrain(_prefs.flood_max, 1, 15);
   _prefs.enable_usb = constrain(_prefs.enable_usb, 0, 1);
   _prefs.enable_multi_wifi = constrain(_prefs.enable_multi_wifi, 0, 1);
+  _prefs.enable_ping_command = constrain(_prefs.enable_ping_command, 0, 1);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -1953,5 +1984,56 @@ bool MyMesh::advert() {
     return true;
   } else {
     return false;
+  }
+}
+// Ping command helper functions
+bool MyMesh::shouldMonitorChannelForPing(const char* channel_name) const {
+  if (!channel_name || channel_name[0] == '\0') return false;
+  if (_prefs.ping_command_channels[0] == '\0') return false;
+  
+  // Check if the channel name is in the comma-separated list
+  char channels_copy[128];
+  strncpy(channels_copy, _prefs.ping_command_channels, sizeof(channels_copy) - 1);
+  channels_copy[sizeof(channels_copy) - 1] = '\0';
+  
+  char* token = strtok(channels_copy, ",");
+  while (token != NULL) {
+    // Trim whitespace
+    while (*token == ' ') token++;
+    char* end = token + strlen(token) - 1;
+    while (end > token && *end == ' ') *end-- = '\0';
+    
+    // Case insensitive comparison
+    if (strcasecmp(token, channel_name) == 0) {
+      return true;
+    }
+    token = strtok(NULL, ",");
+  }
+  return false;
+}
+
+bool MyMesh::isPingCommand(const char* text) const {
+  if (!text) return false;
+  
+  // Trim leading whitespace
+  while (*text == ' ') text++;
+  
+  // Case insensitive comparison with "ping"
+  return (strcasecmp(text, "ping") == 0);
+}
+
+void MyMesh::sendPongReply(const ContactInfo& to) {
+  ContactInfo mutable_to = to;
+  uint32_t dummy_ack;
+  mesh::Packet* pkt = composeMsgPacket(mutable_to, getRTCSeconds(), 0, "Pong!", dummy_ack);
+  if (pkt) {
+    sendMessage(mutable_to, pkt);
+  }
+}
+
+void MyMesh::sendPongReply(const mesh::GroupChannel& channel) {
+  mesh::Packet* pkt = composeChannelMsgPacket(channel, getRTCSeconds(), "Pong!");
+  if (pkt) {
+    sendChannelMessage(channel, pkt);
   }
 }

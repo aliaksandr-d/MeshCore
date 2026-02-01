@@ -175,6 +175,13 @@ private:
   void checkCLIRescueCmd();
   void checkSerialInterface();
 
+  // Ping command helpers
+  bool isPingCommandEnabled() const { return _prefs.enable_ping_command != 0; }
+  bool shouldMonitorChannelForPing(const char* channel_name) const;
+  bool isPingCommand(const char* text) const;
+  void sendPongReply(const ContactInfo& to);
+  void sendPongReply(const mesh::GroupChannel& channel);
+
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
   void saveContacts() { _store->saveContacts(this); }
