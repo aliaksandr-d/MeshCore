@@ -22,10 +22,10 @@ public:
     wifi_enabled = true;
   }
 
-  void beginBLE(const char* device_name, uint32_t pin_code) {
+  void beginBLE(const char* prefix, char* name, uint32_t pin_code) {
     // Note: begin() doesn't return status - initialization errors will be logged
     // via the debug interface if BLE_DEBUG_LOGGING is enabled
-    ble_interface.begin(device_name, pin_code);
+    ble_interface.begin(prefix, name, pin_code);
     ble_enabled = true;
   }
 

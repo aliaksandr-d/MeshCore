@@ -237,9 +237,7 @@ void setup() {
   serial_interface.beginWifi(TCP_PORT);
   
   // Setup BLE
-  char dev_name[32+16];
-  sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
-  serial_interface.beginBLE(dev_name, the_mesh.getBLEPin());
+  serial_interface.beginBLE(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
 #elif defined(WIFI_SSID)
   // Support multiple WiFi SSIDs
   #ifndef WIFI_SSID_2
