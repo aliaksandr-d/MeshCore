@@ -202,6 +202,7 @@ void DataStore::loadPrefs(NodePrefs& prefs, double& node_lat, double& node_lon) 
 void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& node_lat, double& node_lon) {
   File file = openRead(_fs, filename);
   if (file) {
+    size_t file_size = file.size();
     uint8_t pad[8];
 
     file.read((uint8_t *)&_prefs.airtime_factor, sizeof(float));                           // 0
@@ -227,7 +228,19 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet));               // 84
     file.read((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled));                 // 85
     file.read((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
-    file.read((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
+    file.read((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 90
+    
+    // New fields - with backwards compatibility (offset 91)
+    if (file_size > 90) {
+      file.read((uint8_t *)&_prefs.ui_wifi_page, sizeof(_prefs.ui_wifi_page));             // 91
+      file.read((uint8_t *)&_prefs.ui_sos_page, sizeof(_prefs.ui_sos_page));               // 92
+      file.read((uint8_t *)_prefs.emergency_channel, sizeof(_prefs.emergency_channel));     // 93
+    } else {
+      // Set defaults for older versions
+      _prefs.ui_wifi_page = 1;  // WiFi page enabled by default
+      _prefs.ui_sos_page = 1;   // SOS page enabled by default
+      strcpy(_prefs.emergency_channel, "#emergency");
+    }
 
     file.close();
   }
@@ -262,7 +275,10 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet));               // 84
     file.write((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled));                 // 85
     file.write((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
-    file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
+    file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 90
+    file.write((uint8_t *)&_prefs.ui_wifi_page, sizeof(_prefs.ui_wifi_page));               // 91
+    file.write((uint8_t *)&_prefs.ui_sos_page, sizeof(_prefs.ui_sos_page));                 // 92
+    file.write((uint8_t *)_prefs.emergency_channel, sizeof(_prefs.emergency_channel));       // 93
 
     file.close();
   }

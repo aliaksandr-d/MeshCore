@@ -82,12 +82,16 @@ class HomeScreen : public UIScreen {
     RADIO,
     BLUETOOTH,
     ADVERT,
+#if defined(WIFI_SSID) || defined(WIFI_BLE_BOTH)
+    WIFI,
+#endif
 #if ENV_INCLUDE_GPS == 1
     GPS,
 #endif
 #if UI_SENSORS_PAGE == 1
     SENSORS,
 #endif
+    SOS,
     SHUTDOWN,
     Count    // keep as last
   };
@@ -99,6 +103,7 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
+  bool _sos_active;  // Track SOS state
 
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
@@ -154,10 +159,19 @@ class HomeScreen : public UIScreen {
     }
   }
 
+  // Helper to check if a page should be displayed
+  bool isPageEnabled(uint8_t page) {
+#if defined(WIFI_SSID) || defined(WIFI_BLE_BOTH)
+    if (page == HomePage::WIFI && _node_prefs->ui_wifi_page == 0) return false;
+#endif
+    if (page == HomePage::SOS && _node_prefs->ui_sos_page == 0) return false;
+    return true;
+  }
+
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
      : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
-       _shutdown_init(false), sensors_lpp(200) {  }
+       _shutdown_init(false), _sos_active(false), sensors_lpp(200) {  }
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
@@ -267,6 +281,85 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+#if defined(WIFI_SSID) || defined(WIFI_BLE_BOTH)
+    } else if (_page == HomePage::WIFI) {
+      // WiFi status page
+      int y = 18;
+      display.setColor(DisplayDriver::YELLOW);
+      display.setTextSize(1);
+      
+      if (WiFi.status() == WL_CONNECTED) {
+        // Show connected network
+        display.drawTextLeftAlign(0, y, "WiFi: Connected");
+        y += 12;
+        
+        // Network name (SSID)
+        String ssid = WiFi.SSID();
+        char ssid_buf[33];
+        snprintf(ssid_buf, sizeof(ssid_buf), "Net: %s", ssid.c_str());
+        display.drawTextLeftAlign(0, y, ssid_buf);
+        y += 12;
+        
+        // IP Address
+        IPAddress ip = WiFi.localIP();
+        char ip_buf[20];
+        snprintf(ip_buf, sizeof(ip_buf), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+        display.drawTextLeftAlign(0, y, ip_buf);
+        y += 12;
+        
+        // Signal strength (RSSI)
+        int32_t rssi = WiFi.RSSI();
+        char rssi_buf[20];
+        snprintf(rssi_buf, sizeof(rssi_buf), "RSSI: %d dBm", rssi);
+        display.drawTextLeftAlign(0, y, rssi_buf);
+        
+        // Signal quality indicator
+        display.setColor(DisplayDriver::GREEN);
+        if (rssi > -50) {
+          display.drawTextRightAlign(display.width()-1, y, "Excellent");
+        } else if (rssi > -60) {
+          display.drawTextRightAlign(display.width()-1, y, "Good");
+        } else if (rssi > -70) {
+          display.setColor(DisplayDriver::YELLOW);
+          display.drawTextRightAlign(display.width()-1, y, "Fair");
+        } else {
+          display.setColor(DisplayDriver::RED);
+          display.drawTextRightAlign(display.width()-1, y, "Weak");
+        }
+      } else {
+        // Not connected
+        display.setColor(DisplayDriver::RED);
+        display.drawTextCentered(display.width() / 2, y, "WiFi: Not Connected");
+        y += 12;
+        display.setTextSize(1);
+        display.setColor(DisplayDriver::YELLOW);
+        
+        // Show connection status
+        switch (WiFi.status()) {
+          case WL_NO_SHIELD:
+            display.drawTextCentered(display.width() / 2, y, "No WiFi hardware");
+            break;
+          case WL_IDLE_STATUS:
+            display.drawTextCentered(display.width() / 2, y, "Idle");
+            break;
+          case WL_NO_SSID_AVAIL:
+            display.drawTextCentered(display.width() / 2, y, "SSID not available");
+            break;
+          case WL_CONNECT_FAILED:
+            display.drawTextCentered(display.width() / 2, y, "Connection failed");
+            break;
+          case WL_CONNECTION_LOST:
+            display.drawTextCentered(display.width() / 2, y, "Connection lost");
+            break;
+          case WL_DISCONNECTED:
+            display.drawTextCentered(display.width() / 2, y, "Disconnected");
+            break;
+          default:
+            display.drawTextCentered(display.width() / 2, y, "Unknown status");
+            break;
+        }
+      }
+#endif
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
@@ -310,35 +403,42 @@ public:
     } else if (_page == HomePage::SENSORS) {
       int y = 18;
       refresh_sensors();
-      char buf[30];
-      char name[30];
-      LPPReader r(sensors_lpp.getBuffer(), sensors_lpp.getSize());
+      
+      if (sensors_nb == 0 || sensors_lpp.getSize() == 0) {
+        // No sensor data available
+        display.setColor(DisplayDriver::YELLOW);
+        display.drawTextCentered(display.width() / 2, 30, "No sensor data");
+      } else {
+        char buf[30];
+        char name[30];
+        LPPReader r(sensors_lpp.getBuffer(), sensors_lpp.getSize());
 
-      for (int i = 0; i < sensors_scroll_offset; i++) {
-        uint8_t channel, type;
-        r.readHeader(channel, type);
-        r.skipData(type);
-      }
-
-      for (int i = 0; i < (sensors_scroll?UI_RECENT_LIST_SIZE:sensors_nb); i++) {
-        uint8_t channel, type;
-        if (!r.readHeader(channel, type)) { // reached end, reset
-          r.reset();
-          r.readHeader(channel, type);
+        // Skip to scroll offset with bounds checking
+        for (int i = 0; i < sensors_scroll_offset && i < sensors_nb; i++) {
+          uint8_t channel, type;
+          if (!r.readHeader(channel, type)) break;
+          r.skipData(type);
         }
 
-        display.setCursor(0, y);
-        float v;
-        switch (type) {
-          case LPP_GPS: // GPS
-            float lat, lon, alt;
-            r.readGPS(lat, lon, alt);
-            strcpy(name, "gps"); sprintf(buf, "%.4f %.4f", lat, lon);
-            break;
-          case LPP_VOLTAGE:
-            r.readVoltage(v);
-            strcpy(name, "voltage"); sprintf(buf, "%6.2f", v);
-            break;
+        int items_to_show = sensors_scroll ? UI_RECENT_LIST_SIZE : sensors_nb;
+        for (int i = 0; i < items_to_show; i++) {
+          uint8_t channel, type;
+          if (!r.readHeader(channel, type)) { // reached end
+            break;  // Stop instead of resetting to avoid infinite loop
+          }
+
+          display.setCursor(0, y);
+          float v;
+          switch (type) {
+            case LPP_GPS: // GPS
+              float lat, lon, alt;
+              r.readGPS(lat, lon, alt);
+              strcpy(name, "gps"); sprintf(buf, "%.4f %.4f", lat, lon);
+              break;
+            case LPP_VOLTAGE:
+              r.readVoltage(v);
+              strcpy(name, "voltage"); sprintf(buf, "%6.2f", v);
+              break;
           case LPP_CURRENT:
             r.readCurrent(v);
             strcpy(name, "current"); sprintf(buf, "%.3f", v);
@@ -375,9 +475,37 @@ public:
         display.print(buf);
         y = y + 12;
       }
-      if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
-      else sensors_scroll_offset = 0;
+      if (sensors_scroll && sensors_nb > 0) {
+        sensors_scroll_offset = (sensors_scroll_offset+1) % sensors_nb;
+      } else {
+        sensors_scroll_offset = 0;
+      }
+    }
 #endif
+    } else if (_page == HomePage::SOS) {
+      // SOS page
+      display.setColor(_sos_active ? DisplayDriver::RED : DisplayDriver::YELLOW);
+      display.setTextSize(2);
+      display.drawTextCentered(display.width() / 2, 18, _sos_active ? "SOS ACTIVE" : "SOS");
+      
+      display.setTextSize(1);
+      if (_sos_active) {
+        display.setColor(DisplayDriver::GREEN);
+        display.drawTextCentered(display.width() / 2, 36, "Message sent!");
+        display.drawTextCentered(display.width() / 2, 48, "Press to deactivate");
+      } else {
+        display.setColor(DisplayDriver::GREEN);
+        display.drawTextCentered(display.width() / 2, 36, "Emergency mode");
+        
+        // Show channel name
+        const char* channel = _node_prefs->emergency_channel[0] != '\0' ? 
+                              _node_prefs->emergency_channel : "#emergency";
+        char channel_buf[40];
+        snprintf(channel_buf, sizeof(channel_buf), "Ch: %s", channel);
+        display.drawTextCentered(display.width() / 2, 48, channel_buf);
+        
+        display.drawTextCentered(display.width() / 2, 60, PRESS_LABEL " to activate");
+      }
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
@@ -393,11 +521,21 @@ public:
 
   bool handleInput(char c) override {
     if (c == KEY_LEFT || c == KEY_PREV) {
-      _page = (_page + HomePage::Count - 1) % HomePage::Count;
+      // Navigate backwards, skipping disabled pages
+      int attempts = 0;
+      do {
+        _page = (_page + HomePage::Count - 1) % HomePage::Count;
+        attempts++;
+      } while (!isPageEnabled(_page) && attempts < HomePage::Count);
       return true;
     }
     if (c == KEY_NEXT || c == KEY_RIGHT) {
-      _page = (_page + 1) % HomePage::Count;
+      // Navigate forwards, skipping disabled pages
+      int attempts = 0;
+      do {
+        _page = (_page + 1) % HomePage::Count;
+        attempts++;
+      } while (!isPageEnabled(_page) && attempts < HomePage::Count);
       if (_page == HomePage::RECENT) {
         _task->showAlert("Recent adverts", 800);
       }
@@ -433,6 +571,39 @@ public:
       return true;
     }
 #endif
+    if (c == KEY_ENTER && _page == HomePage::SOS) {
+      _sos_active = !_sos_active;  // Toggle SOS state
+      if (_sos_active) {
+        // Send SOS message
+        char sos_msg[200];
+        const char* channel = _node_prefs->emergency_channel[0] != '\0' ? 
+                              _node_prefs->emergency_channel : "#emergency";
+        
+        // Get GPS coordinates if available
+#if ENV_INCLUDE_GPS == 1
+        LocationProvider* nmea = _sensors->getLocationProvider();
+        if (nmea != NULL && nmea->isValid()) {
+          snprintf(sos_msg, sizeof(sos_msg), 
+                   "SOS! Emergency! Location: %.6f, %.6f (%.1fm)",
+                   nmea->getLatitude() / 1000000.0,
+                   nmea->getLongitude() / 1000000.0,
+                   nmea->getAltitude() / 1000.0);
+        } else {
+          snprintf(sos_msg, sizeof(sos_msg), "SOS! Emergency! (No GPS location available)");
+        }
+#else
+        snprintf(sos_msg, sizeof(sos_msg), "SOS! Emergency!");
+#endif
+        
+        // Send message to emergency channel
+        the_mesh.sendChannelMessage(channel, sos_msg);
+        _task->notify(UIEventType::ack);
+        _task->showAlert("SOS sent!", 2000);
+      } else {
+        _task->showAlert("SOS deactivated", 1000);
+      }
+      return true;
+    }
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
       _shutdown_init = true;  // need to wait for button to be released
       return true;
