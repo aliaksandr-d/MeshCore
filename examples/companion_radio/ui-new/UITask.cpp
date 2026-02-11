@@ -576,7 +576,7 @@ public:
       if (_sos_active) {
         // Send SOS message
         char sos_msg[200];
-        const char* channel = _node_prefs->emergency_channel[0] != '\0' ? 
+        const char* channel_name = _node_prefs->emergency_channel[0] != '\0' ? 
                               _node_prefs->emergency_channel : "#emergency";
         
         // Get GPS coordinates if available
@@ -595,10 +595,29 @@ public:
         snprintf(sos_msg, sizeof(sos_msg), "SOS! Emergency!");
 #endif
         
-        // Send message to emergency channel
-        the_mesh.sendChannelMessage(channel, sos_msg);
-        _task->notify(UIEventType::ack);
-        _task->showAlert("SOS sent!", 2000);
+        // Find the emergency channel and send message
+        bool sent = false;
+        for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
+          ChannelDetails channel_details;
+          if (the_mesh.getChannel(i, channel_details)) {
+            if (strcmp(channel_details.name, channel_name) == 0) {
+              // Found the channel, send the message
+              uint32_t timestamp = _rtc->getCurrentTime();
+              if (the_mesh.sendGroupMessage(timestamp, channel_details.channel, 
+                                           _node_prefs->node_name, sos_msg, strlen(sos_msg))) {
+                sent = true;
+                _task->notify(UIEventType::ack);
+                _task->showAlert("SOS sent!", 2000);
+              }
+              break;
+            }
+          }
+        }
+        
+        if (!sent) {
+          _sos_active = false;  // Reset if couldn't send
+          _task->showAlert("Channel not found!", 2000);
+        }
       } else {
         _task->showAlert("SOS deactivated", 1000);
       }
