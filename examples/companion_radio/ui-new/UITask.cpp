@@ -79,8 +79,8 @@ class HomeScreen : public UIScreen {
   enum HomePage {
     FIRST,
     RECENT,
-    RADIO,
     BLUETOOTH,
+    RADIO,
     ADVERT,
 #if defined(WIFI_SSID) || defined(WIFI_BLE_BOTH)
     WIFI,
@@ -91,7 +91,9 @@ class HomeScreen : public UIScreen {
 #if UI_SENSORS_PAGE == 1
     SENSORS,
 #endif
+#ifdef SOS_FEATURE_ENABLED
     SOS,
+#endif
     SHUTDOWN,
     Count    // keep as last
   };
@@ -104,6 +106,7 @@ class HomeScreen : public UIScreen {
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
   bool _sos_active;  // Track SOS state
+  unsigned long _sos_last_sent;  // Last time SOS message was sent
 
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
@@ -161,22 +164,75 @@ class HomeScreen : public UIScreen {
 
   // Helper to check if a page should be displayed
   bool isPageEnabled(uint8_t page) {
-#if defined(WIFI_SSID) || defined(WIFI_BLE_BOTH)
-    if (page == HomePage::WIFI && _node_prefs->ui_wifi_page == 0) return false;
-#endif
-    if (page == HomePage::SOS && _node_prefs->ui_sos_page == 0) return false;
+    // WiFi and SOS pages are always visible to show connection/activation status
     return true;
+  }
+
+  // Helper to send SOS message
+  void sendSOSMessage() {
+    char sos_msg[200];
+#ifdef SOS_EMERGENCY_CHANNEL
+    const char* channel_name = SOS_EMERGENCY_CHANNEL;
+#else
+    const char* channel_name = _node_prefs->emergency_channel[0] != '\0' ? 
+                          _node_prefs->emergency_channel : "#emergency";
+#endif
+    
+    // Get GPS coordinates if available
+#if ENV_INCLUDE_GPS == 1
+    LocationProvider* nmea = _sensors->getLocationProvider();
+    if (nmea != NULL && nmea->isValid()) {
+      snprintf(sos_msg, sizeof(sos_msg), 
+               "SOS! Emergency! Location: %.6f, %.6f (%.1fm)",
+               nmea->getLatitude() / 1000000.0,
+               nmea->getLongitude() / 1000000.0,
+               nmea->getAltitude() / 1000.0);
+    } else {
+      snprintf(sos_msg, sizeof(sos_msg), "SOS! Emergency! (No GPS location available)");
+    }
+#else
+    snprintf(sos_msg, sizeof(sos_msg), "SOS! Emergency!");
+#endif
+    
+    // Find the emergency channel and send message
+    for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
+      ChannelDetails channel_details;
+      if (the_mesh.getChannel(i, channel_details)) {
+        if (strcmp(channel_details.name, channel_name) == 0) {
+          // Found the channel, send the message
+          uint32_t timestamp = _rtc->getCurrentTime();
+          if (the_mesh.sendGroupMessage(timestamp, channel_details.channel, 
+                                       _node_prefs->node_name, sos_msg, strlen(sos_msg))) {
+            _task->notify(UIEventType::ack);
+          }
+          break;
+        }
+      }
+    }
   }
 
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
      : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
-       _shutdown_init(false), _sos_active(false), sensors_lpp(200) {  }
+       _shutdown_init(false), _sos_active(false), _sos_last_sent(0), sensors_lpp(200) {  }
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
       _task->shutdown();
     }
+#ifdef SOS_FEATURE_ENABLED
+    // Periodically resend SOS message if active
+    if (_sos_active) {
+      unsigned long now = millis();
+#ifndef SOS_MESSAGE_PERIOD_SECS
+#define SOS_MESSAGE_PERIOD_SECS 60
+#endif
+      if (now - _sos_last_sent >= (SOS_MESSAGE_PERIOD_SECS * 1000UL)) {
+        sendSOSMessage();
+        _sos_last_sent = now;
+      }
+    }
+#endif
   }
 
   int render(DisplayDriver& display) override {
@@ -491,20 +547,29 @@ public:
       display.setTextSize(1);
       if (_sos_active) {
         display.setColor(DisplayDriver::GREEN);
-        display.drawTextCentered(display.width() / 2, 36, "Message sent!");
+#ifdef SOS_MESSAGE_PERIOD_SECS
+        char period_buf[30];
+        snprintf(period_buf, sizeof(period_buf), "Repeating every %ds", SOS_MESSAGE_PERIOD_SECS);
+        display.drawTextCentered(display.width() / 2, 36, period_buf);
+#else
+        display.drawTextCentered(display.width() / 2, 36, "Sending messages...");
+#endif
         display.drawTextCentered(display.width() / 2, 48, "Press to deactivate");
       } else {
         display.setColor(DisplayDriver::GREEN);
-        display.drawTextCentered(display.width() / 2, 36, "Emergency mode");
         
         // Show channel name
+#ifdef SOS_EMERGENCY_CHANNEL
+        const char* channel = SOS_EMERGENCY_CHANNEL;
+#else
         const char* channel = _node_prefs->emergency_channel[0] != '\0' ? 
                               _node_prefs->emergency_channel : "#emergency";
+#endif
         char channel_buf[40];
         snprintf(channel_buf, sizeof(channel_buf), "Ch: %s", channel);
-        display.drawTextCentered(display.width() / 2, 48, channel_buf);
+        display.drawTextCentered(display.width() / 2, 42, channel_buf);
         
-        display.drawTextCentered(display.width() / 2, 60, PRESS_LABEL " to activate");
+        display.drawTextCentered(display.width() / 2, 54, PRESS_LABEL " to activate");
       }
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
@@ -572,55 +637,19 @@ public:
     }
 #endif
     if (c == KEY_ENTER && _page == HomePage::SOS) {
+#ifdef SOS_FEATURE_ENABLED
       _sos_active = !_sos_active;  // Toggle SOS state
       if (_sos_active) {
-        // Send SOS message
-        char sos_msg[200];
-        const char* channel_name = _node_prefs->emergency_channel[0] != '\0' ? 
-                              _node_prefs->emergency_channel : "#emergency";
-        
-        // Get GPS coordinates if available
-#if ENV_INCLUDE_GPS == 1
-        LocationProvider* nmea = _sensors->getLocationProvider();
-        if (nmea != NULL && nmea->isValid()) {
-          snprintf(sos_msg, sizeof(sos_msg), 
-                   "SOS! Emergency! Location: %.6f, %.6f (%.1fm)",
-                   nmea->getLatitude() / 1000000.0,
-                   nmea->getLongitude() / 1000000.0,
-                   nmea->getAltitude() / 1000.0);
-        } else {
-          snprintf(sos_msg, sizeof(sos_msg), "SOS! Emergency! (No GPS location available)");
-        }
-#else
-        snprintf(sos_msg, sizeof(sos_msg), "SOS! Emergency!");
-#endif
-        
-        // Find the emergency channel and send message
-        bool sent = false;
-        for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-          ChannelDetails channel_details;
-          if (the_mesh.getChannel(i, channel_details)) {
-            if (strcmp(channel_details.name, channel_name) == 0) {
-              // Found the channel, send the message
-              uint32_t timestamp = _rtc->getCurrentTime();
-              if (the_mesh.sendGroupMessage(timestamp, channel_details.channel, 
-                                           _node_prefs->node_name, sos_msg, strlen(sos_msg))) {
-                sent = true;
-                _task->notify(UIEventType::ack);
-                _task->showAlert("SOS sent!", 2000);
-              }
-              break;
-            }
-          }
-        }
-        
-        if (!sent) {
-          _sos_active = false;  // Reset if couldn't send
-          _task->showAlert("Channel not found!", 2000);
-        }
+        // Send initial SOS message
+        sendSOSMessage();
+        _sos_last_sent = millis();
+        _task->showAlert("SOS activated!", 2000);
       } else {
         _task->showAlert("SOS deactivated", 1000);
       }
+#else
+      _task->showAlert("SOS disabled", 1000);
+#endif
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
