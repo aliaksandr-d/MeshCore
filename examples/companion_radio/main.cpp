@@ -35,8 +35,17 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(WIFI_BLE_BOTH)
+    // Combined WiFi and BLE interface
+    #include <helpers/esp32/SerialWifiBLEInterface.h>
+    #include <helpers/esp32/WiFiMultiConnect.h>
+    SerialWifiBLEInterface serial_interface;
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+  #elif defined(WIFI_SSID)
     #include <helpers/esp32/SerialWifiInterface.h>
+    #include <helpers/esp32/WiFiMultiConnect.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
       #define TCP_PORT 5000
@@ -193,8 +202,73 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
+#if defined(WIFI_BLE_BOTH)
+  // Combined WiFi and BLE setup
+  // Setup WiFi
+  #ifndef WIFI_SSID_2
+    // Single SSID configuration (backward compatible)
+    WiFi.begin(WIFI_SSID, WIFI_PWD);
+  #else
+    // Multiple SSID configuration
+    // Note: connect() will attempt each SSID and return true if any succeeds
+    // If connection fails, the device will still start but WiFi won't be available
+    WiFiMultiConnect::WiFiCredential credentials[] = {
+      {WIFI_SSID, WIFI_PWD},
+      #ifdef WIFI_SSID_2
+      {WIFI_SSID_2, WIFI_PWD_2},
+      #endif
+      #ifdef WIFI_SSID_3
+      {WIFI_SSID_3, WIFI_PWD_3},
+      #endif
+      #ifdef WIFI_SSID_4
+      {WIFI_SSID_4, WIFI_PWD_4},
+      #endif
+      #ifdef WIFI_SSID_5
+      {WIFI_SSID_5, WIFI_PWD_5},
+      #endif
+    };
+    bool wifi_connected = WiFiMultiConnect::connect(credentials, sizeof(credentials) / sizeof(credentials[0]));
+    #ifdef WIFI_DEBUG_LOGGING
+    if (!wifi_connected) {
+      Serial.println("WiFi: Failed to connect to any configured network");
+    }
+    #endif
+  #endif
+  serial_interface.beginWifi(TCP_PORT);
+  
+  // Setup BLE
+  serial_interface.beginBLE(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+#elif defined(WIFI_SSID)
+  // Support multiple WiFi SSIDs
+  #ifndef WIFI_SSID_2
+    // Single SSID configuration (backward compatible)
+    WiFi.begin(WIFI_SSID, WIFI_PWD);
+  #else
+    // Multiple SSID configuration
+    // Note: connect() will attempt each SSID and return true if any succeeds
+    // If connection fails, the device will still start but WiFi won't be available
+    WiFiMultiConnect::WiFiCredential credentials[] = {
+      {WIFI_SSID, WIFI_PWD},
+      #ifdef WIFI_SSID_2
+      {WIFI_SSID_2, WIFI_PWD_2},
+      #endif
+      #ifdef WIFI_SSID_3
+      {WIFI_SSID_3, WIFI_PWD_3},
+      #endif
+      #ifdef WIFI_SSID_4
+      {WIFI_SSID_4, WIFI_PWD_4},
+      #endif
+      #ifdef WIFI_SSID_5
+      {WIFI_SSID_5, WIFI_PWD_5},
+      #endif
+    };
+    bool wifi_connected = WiFiMultiConnect::connect(credentials, sizeof(credentials) / sizeof(credentials[0]));
+    #ifdef WIFI_DEBUG_LOGGING
+    if (!wifi_connected) {
+      Serial.println("WiFi: Failed to connect to any configured network");
+    }
+    #endif
+  #endif
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
   serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());

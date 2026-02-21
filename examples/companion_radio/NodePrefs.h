@@ -28,4 +28,7 @@ struct NodePrefs {  // persisted to file
   uint8_t  gps_enabled;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval;     // GPS read interval in seconds
   uint8_t autoadd_config;    // bitmask for auto-add contacts config
+  uint8_t  ui_wifi_page;     // WiFi page enabled flag (0=disabled, 1=enabled)
+  uint8_t  ui_sos_page;      // SOS page enabled flag (0=disabled, 1=enabled)
+  char emergency_channel[32]; // Emergency channel name for SOS (default "#emergency")
 };
